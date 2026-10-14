@@ -1,0 +1,70 @@
+# Full local stack: the service, its database, and the observability backends.
+#   make up       -> everything (app on :8000)
+#   make up-infra -> everything but the app (run it with `make dev`)
+name: observable-ai-service
+
+services:
+  app:
+    build: .
+    ports: ["8000:8000"]
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+asyncpg://app:app@postgres:5432/ai_service
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+      LOG_FORMAT: json
+    # Migrations on start keep the demo one command; a real deploy runs them as a job.
+    command: ["sh", "-c", "alembic upgrade head && python -m app.main"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      jaeger: { condition: service_started }
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: ai_service
+    # 5433 on the host so a local Postgres on 5432 does not clash.
+    ports: ["${POSTGRES_HOST_PORT:-5433}:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d ai_service"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"   # UI
+      - "4318:4318"     # OTLP/HTTP
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --web.enable-lifecycle
+    volumes: ["./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro"]
+    ports: ["9090:9090"]
+    # `make dev` runs the app on the host; this lets Prometheus scrape it there too.
+    extra_hosts: ["host.docker.internal:host-gateway"]
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    environment:
+      # Local demo only: no login screen between you and the dashboard.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports: ["3000:3000"]
+    depends_on: [prometheus, jaeger]
+
+volumes:
+  pgdata:

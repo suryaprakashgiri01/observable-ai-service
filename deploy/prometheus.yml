@@ -1,0 +1,12 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: observable-ai-service
+    metrics_path: /metrics
+    static_configs:
+      # One target for both modes: the compose app publishes :8000 on the host,
+      # and `make dev` serves :8000 on the host. Listing `app:8000` as well would
+      # scrape the same process twice and double every sum on the dashboard.
+      - targets: ["host.docker.internal:8000"]
