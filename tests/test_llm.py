@@ -119,6 +119,13 @@ async def test_injected_faults_hit_only_the_selected_model() -> None:
     assert error.fallback_used and error.attempts == 2
 
 
+async def test_fault_on_selected_mock_still_degrades_to_last_resort_mock() -> None:
+    done = await orchestrator(ScriptedProvider()).complete(
+        Selection(MOCK, "mock", None), MESSAGES, fault=FAULT_LLM_TIMEOUT
+    )
+    assert done.fallback_used and done.chain == [MOCK_MODEL_ID, MOCK_MODEL_ID]
+
+
 # --- provider adapters (wire format and error mapping) ------------------------------
 
 

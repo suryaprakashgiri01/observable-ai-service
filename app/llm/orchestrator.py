@@ -81,7 +81,9 @@ class LLMOrchestrator:
         chain = [selection.model]
         if selection.fallback is not None:
             chain.append(selection.fallback)
-        if all(m.id != MOCK_MODEL_ID for m in chain):
+        # The rule-based mock is the last resort. It is appended even when the
+        # selected model *is* the mock, so an injected fault on it still degrades.
+        if chain[-1].id != MOCK_MODEL_ID or len(chain) == 1:
             chain.append(_MOCK)
 
         attempts = 0
