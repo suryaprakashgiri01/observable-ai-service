@@ -35,7 +35,7 @@ provider keys everything still runs on `mock-echo`.
 
 | URL | What |
 |---|---|
-| http://localhost:8000/docs | OpenAPI / Swagger (use **Authorize** with your `X-API-Key`) |
+| http://localhost:8000/docs | OpenAPI / Swagger (fill the `X-API-Key` header field on each request) |
 | http://localhost:16686 | Jaeger: search service `observable-ai-service` |
 | http://localhost:3000 | Grafana → *AI Service / Observable AI Service* |
 | http://localhost:9090 | Prometheus |

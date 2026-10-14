@@ -85,9 +85,9 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
         description=(
             "AI-backed `/ask` API with a multi-provider LLM orchestrator, "
             "structured logs, Prometheus metrics and OpenTelemetry traces.\n\n"
-            "**Auth:** click **Authorize** and paste your `X-API-Key` (from `make seed`). "
-            "It is sent on every request; `/health`, `/health/ready` and `/metrics` "
-            "need no key.\n\n"
+            "**Auth:** every route except `/health`, `/health/ready` and `/metrics` has an "
+            "`X-API-Key` header field: paste the key from `make seed` "
+            "(`SEED_DEMO_API_KEY` in `.env`).\n\n"
             "**Tracing:** every response has an `X-Request-ID` header, and `/ask` returns "
             "a `trace_id` to open in Jaeger at `http://localhost:16686/trace/<trace_id>`.\n\n"
             '**Errors:** always `{"error": {code, message, request_id, details?}}`.'
@@ -95,8 +95,6 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
         lifespan=lifespan,
         # Documents X-Request-ID / traceparent on every route; the middleware does the work.
         dependencies=[Depends(document_common_headers)],
-        # Keep the key entered under "Authorize" across page reloads.
-        swagger_ui_parameters={"persistAuthorization": True},
     )
     app.state.settings = settings
 

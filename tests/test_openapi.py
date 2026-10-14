@@ -27,11 +27,18 @@ def test_ask_documents_model_and_fault_headers_with_examples(client: TestClient)
     assert {"ticket", "revenue", "invalid"} <= set(body["examples"])
 
 
-def test_api_key_scheme_and_error_examples(client: TestClient) -> None:
+def test_api_key_is_a_header_field_on_protected_routes_only(client: TestClient) -> None:
     spec = client.get("/openapi.json").json()
-    scheme = spec["components"]["securitySchemes"]["ApiKeyAuth"]
-    assert scheme == {**scheme, "type": "apiKey", "in": "header", "name": "X-API-Key"}
-    assert "make seed" in scheme["description"]
+    public = {"/health", "/health/ready", "/metrics"}
+    for path, methods in spec["paths"].items():
+        for method in methods:
+            params = _params(spec, path, method)
+            assert ("X-API-Key" in params) == (path not in public), (method, path)
+    assert "make seed" in _params(spec, "/ask", "post")["X-API-Key"]["description"]
+
+
+def test_error_examples(client: TestClient) -> None:
+    spec = client.get("/openapi.json").json()
     responses = spec["paths"]["/ask"]["post"]["responses"]
     assert {"400", "401", "422", "500", "502", "503"} <= set(responses)
     assert set(responses["401"]["content"]["application/json"]["examples"]) == {

@@ -8,8 +8,7 @@ from datetime import UTC, datetime
 from typing import Annotated
 
 import structlog
-from fastapi import Depends, Security
-from fastapi.security import APIKeyHeader
+from fastapi import Depends, Header
 from opentelemetry import trace
 from sqlalchemy import select, update
 
@@ -22,17 +21,21 @@ from app.exceptions import AppError, ErrorCode
 
 API_KEY_HEADER = "X-API-Key"
 
-# auto_error=False: a missing header must render our envelope, not FastAPI's 403.
-_api_key_scheme = APIKeyHeader(
-    name=API_KEY_HEADER,
-    auto_error=False,
-    scheme_name="ApiKeyAuth",
-    description=(
-        "API key of a registered, active user. `make seed` creates admin, demo and analyst "
-        "users and prints any generated key; pinned keys are `SEED_*_API_KEY` in `.env`. "
-        "Example shape: `oas_local_demo_3f9c...`."
+# A plain header parameter, not a security scheme, so Swagger renders a text box on
+# every protected route. Optional at the HTTP layer so a missing key renders our
+# 401 envelope instead of FastAPI's 422.
+ApiKeyHeaderParam = Annotated[
+    str | None,
+    Header(
+        alias=API_KEY_HEADER,
+        description=(
+            "**Required.** API key of a registered, active user. `make seed` creates admin, "
+            "demo and analyst users; pinned keys are `SEED_*_API_KEY` in `.env`, otherwise "
+            "`make seed` prints the generated key once. Shape: `oas_local_demo_3f9c...`. "
+            "Missing → 401 AUTH_REQUIRED; unknown, revoked or inactive → 401 AUTH_INVALID."
+        ),
     ),
-)
+]
 
 logger = structlog.get_logger(__name__)
 
@@ -57,7 +60,7 @@ def _reject(reason: str, code: ErrorCode, message: str) -> AppError:
 
 async def get_current_user(
     session: Session,
-    api_key: Annotated[str | None, Security(_api_key_scheme)] = None,
+    api_key: ApiKeyHeaderParam = None,
 ) -> AuthenticatedUser:
     if not api_key:
         raise _reject("missing", ErrorCode.AUTH_REQUIRED, f"{API_KEY_HEADER} header is required")
