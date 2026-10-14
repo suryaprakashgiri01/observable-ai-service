@@ -14,6 +14,10 @@ def route_template(scope: Scope) -> str:
     A raw path as a metric label is unbounded cardinality: every id becomes a
     new time series. Unmatched paths (scanners, typos) share one label.
     """
+    # FastAPI records the matched route on the scope once routing has run.
+    matched = scope.get("route")
+    if matched is not None and hasattr(matched, "path"):
+        return str(matched.path)
     app = scope.get("app")
     for route in getattr(app, "routes", []):
         match, _ = route.matches(scope)
