@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from pydantic import BaseModel, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from app.llm.types import Provider, Tier
 
@@ -31,10 +31,51 @@ class ModelUsage(BaseModel):
 
 
 class AskResponse(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "request_id": "demo-1",
+                "trace_id": "1fe3198591de872ea212189dbcb19138",
+                "answer": "Created ticket #1 (high priority): checkout page is slow",
+                "intent": "create_ticket",
+                "action": {
+                    "type": "ticket_created",
+                    "ticket": {
+                        "id": 1,
+                        "title": "checkout page is slow",
+                        "description": "",
+                        "priority": "high",
+                        "status": "open",
+                        "request_id": "demo-1",
+                        "trace_id": "1fe3198591de872ea212189dbcb19138",
+                        "created_at": "2026-10-14T15:49:40.196164Z",
+                    },
+                },
+                "model": {
+                    "requested": "claude-haiku-5-5",
+                    "used": "claude-haiku-5-5",
+                    "provider": "anthropic",
+                    "tier": "economy",
+                    "source": "header",
+                    "fallback_used": False,
+                    "attempts": 1,
+                    "chain": ["claude-haiku-5-5"],
+                },
+                "latency_ms": 812.4,
+            }
+        }
+    )
+
     request_id: str | None
     trace_id: str | None = Field(description="Search this id in Jaeger (and Langfuse).")
     answer: str
-    intent: str
-    action: dict[str, Any] | None
+    intent: str = Field(description="create_ticket | generate_report | general")
+    action: dict[str, Any] | None = Field(
+        description=(
+            '`{"type": "ticket_created", "ticket": Ticket}` or `{"type": "report", "report": '
+            "{metric, period_days, value, order_count, by_region, top_products, "
+            "excluded_refunded}}`; null for general questions."
+        )
+    )
     model: ModelUsage
     latency_ms: float

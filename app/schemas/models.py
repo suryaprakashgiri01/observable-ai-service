@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field, HttpUrl, SecretStr
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, JsonValue, SecretStr
 
 from app.llm.registry import ModelView
 from app.llm.types import Provider, Tier
@@ -32,7 +32,39 @@ class ModelItem(BaseModel):
         )
 
 
+_ITEM_EXAMPLE: dict[str, JsonValue] = {
+    "id": "claude-haiku-5-5",
+    "name": "Claude Haiku 5.5",
+    "provider": "anthropic",
+    "tier": "economy",
+    "available": True,
+    "is_default": False,
+    "is_fallback": False,
+    "owned": False,
+}
+
+
 class ModelListResponse(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "items": [
+                    _ITEM_EXAMPLE,
+                    {
+                        **_ITEM_EXAMPLE,
+                        "id": "mock-echo",
+                        "name": "Mock (rule-based)",
+                        "provider": "mock",
+                        "is_fallback": True,
+                    },
+                ],
+                "total": 2,
+                "default_model_id": "gpt-4.1-mini",
+                "fallback_model_id": "mock-echo",
+            }
+        }
+    )
+
     items: list[ModelItem]
     total: int
     default_model_id: str
@@ -44,6 +76,12 @@ class SetModelRequest(BaseModel):
 
 
 class ModelConfigResponse(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {"default_model_id": "claude-haiku-5-5", "fallback_model_id": "mock-echo"}
+        }
+    )
+
     default_model_id: str
     fallback_model_id: str
 

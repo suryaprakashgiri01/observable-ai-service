@@ -23,7 +23,16 @@ from app.exceptions import AppError, ErrorCode
 API_KEY_HEADER = "X-API-Key"
 
 # auto_error=False: a missing header must render our envelope, not FastAPI's 403.
-_api_key_scheme = APIKeyHeader(name=API_KEY_HEADER, auto_error=False)
+_api_key_scheme = APIKeyHeader(
+    name=API_KEY_HEADER,
+    auto_error=False,
+    scheme_name="ApiKeyAuth",
+    description=(
+        "API key of a registered, active user. `make seed` creates admin, demo and analyst "
+        "users and prints any generated key; pinned keys are `SEED_*_API_KEY` in `.env`. "
+        "Example shape: `oas_local_demo_3f9c...`."
+    ),
+)
 
 logger = structlog.get_logger(__name__)
 

@@ -4,15 +4,16 @@ import time
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Header
+from fastapi import APIRouter, Body, Header
 
 from app.api.deps import AppSettings, Session
+from app.api.openapi import AUTH_ERRORS, error_responses
 from app.api.services import Orchestrator, Registry
 from app.auth.dependencies import CurrentUser
 from app.core.context import get_request_id
 from app.core.metrics import ASK_REQUESTS, MODEL_SELECTION
 from app.core.telemetry import current_trace_id, tracer
-from app.exceptions import AppError
+from app.exceptions import AppError, ErrorCode
 from app.schemas.ask import AskRequest, AskResponse, ModelUsage
 from app.services.agent import AgentService
 
@@ -24,21 +25,84 @@ ModelIdHeader = Annotated[
     Header(
         alias="X-Model-Id",
         max_length=64,
-        description="Model for this request; overrides the body `model_id`. See GET /models.",
+        description=(
+            "Model for this request; wins over the body `model_id`. Any `id` from "
+            "`GET /models`. Unknown → 400 MODEL_NOT_FOUND; no provider key → 400 "
+            "MODEL_UNAVAILABLE. Omit it to use your default."
+        ),
+        openapi_examples={
+            "default": {"summary": "Use my default model", "value": ""},
+            "mock": {"summary": "mock-echo (always available)", "value": "mock-echo"},
+            "anthropic": {"summary": "Claude Haiku 5.5 (economy)", "value": "claude-haiku-5-5"},
+            "openai": {"summary": "GPT-4.1 mini (standard)", "value": "gpt-4.1-mini"},
+            "google": {"summary": "Gemini 2.5 Pro (premium)", "value": "gemini-2.5-pro"},
+            "unknown": {"summary": "Unknown → 400", "value": "nope"},
+        },
     ),
 ]
 FaultHeader = Annotated[
     str | None,
     Header(
         alias="X-Debug-Fault",
-        description="Demo only (ENABLE_FAULT_INJECTION): llm_timeout | llm_error | tool_error.",
+        description=(
+            "Demo only; ignored unless `ENABLE_FAULT_INJECTION=true`. `llm_timeout`: the "
+            "selected model times out on every attempt, so retries then fallback. `llm_error`: "
+            "permanent error, fallback without retry. `tool_error`: the business action "
+            "fails → 502."
+        ),
+        openapi_examples={
+            "none": {"summary": "No fault", "value": ""},
+            "llm_timeout": {"summary": "Timeouts → retries → fallback", "value": "llm_timeout"},
+            "llm_error": {"summary": "Permanent error → fallback", "value": "llm_error"},
+            "tool_error": {"summary": "Tool fails → 502", "value": "tool_error"},
+        },
+    ),
+]
+AskBody = Annotated[
+    AskRequest,
+    Body(
+        openapi_examples={
+            "ticket": {
+                "summary": "Create a ticket",
+                "value": {"question": "Create a high priority ticket: checkout page is slow"},
+            },
+            "revenue": {
+                "summary": "Revenue report",
+                "value": {"question": "Give me a revenue report for the last 7 days"},
+            },
+            "orders": {
+                "summary": "Orders report",
+                "value": {"question": "How many orders in the last 30 days?"},
+            },
+            "aov": {
+                "summary": "Average order value",
+                "value": {"question": "What is the average order value this quarter?"},
+            },
+            "general": {"summary": "General question", "value": {"question": "What can you do?"}},
+            "body_model": {
+                "summary": "Pick the model in the body",
+                "value": {"question": "Orders in the last 14 days", "model_id": "mock-echo"},
+            },
+            "invalid": {"summary": "Empty question → 422", "value": {"question": ""}},
+        }
     ),
 ]
 
 
-@router.post("/ask", response_model=AskResponse, summary="Ask a question")
+@router.post(
+    "/ask",
+    response_model=AskResponse,
+    summary="Ask a question",
+    responses=error_responses(
+        *AUTH_ERRORS,
+        ErrorCode.MODEL_NOT_FOUND,
+        ErrorCode.MODEL_UNAVAILABLE,
+        ErrorCode.TOOL_FAILED,
+        ErrorCode.LLM_UNAVAILABLE,
+    ),
+)
 async def ask(
-    body: AskRequest,
+    body: AskBody,
     user: CurrentUser,
     registry: Registry,
     orchestrator: Orchestrator,

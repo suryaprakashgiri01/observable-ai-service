@@ -6,8 +6,9 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import structlog
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 
+from app.api.openapi import document_common_headers
 from app.api.routes import ask, health, metrics, models, tickets
 from app.core.config import Settings, get_settings
 from app.core.logging import setup_logging
@@ -83,9 +84,19 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
         version=settings.service_version,
         description=(
             "AI-backed `/ask` API with a multi-provider LLM orchestrator, "
-            "structured logs, Prometheus metrics and OpenTelemetry traces."
+            "structured logs, Prometheus metrics and OpenTelemetry traces.\n\n"
+            "**Auth:** click **Authorize** and paste your `X-API-Key` (from `make seed`). "
+            "It is sent on every request; `/health`, `/health/ready` and `/metrics` "
+            "need no key.\n\n"
+            "**Tracing:** every response has an `X-Request-ID` header, and `/ask` returns "
+            "a `trace_id` to open in Jaeger at `http://localhost:16686/trace/<trace_id>`.\n\n"
+            '**Errors:** always `{"error": {code, message, request_id, details?}}`.'
         ),
         lifespan=lifespan,
+        # Documents X-Request-ID / traceparent on every route; the middleware does the work.
+        dependencies=[Depends(document_common_headers)],
+        # Keep the key entered under "Authorize" across page reloads.
+        swagger_ui_parameters={"persistAuthorization": True},
     )
     app.state.settings = settings
 
