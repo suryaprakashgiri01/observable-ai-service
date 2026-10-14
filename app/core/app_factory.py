@@ -65,6 +65,7 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
 
         http_client = build_http_client(settings)
         recorder = LangfuseRecorder.from_settings(settings)
+        app.state.langfuse = recorder
         app.state.orchestrator = LLMOrchestrator(
             build_providers(http_client, settings), settings, recorder
         )
@@ -85,9 +86,11 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
         description=(
             "AI-backed `/ask` API with a multi-provider LLM orchestrator, "
             "structured logs, Prometheus metrics and OpenTelemetry traces.\n\n"
-            "**Auth:** every route except `/health`, `/health/ready` and `/metrics` has an "
-            "`X-API-Key` header field: paste the key from `make seed` "
-            "(`SEED_DEMO_API_KEY` in `.env`).\n\n"
+            "**Auth:** click **Authorize** once and paste your key, or fill the `X-API-Key` "
+            "field on a single request. The key is `SEED_DEMO_API_KEY` in `.env` (or the one "
+            "`make seed` printed). `/health`, `/health/ready` and `/metrics` need no key.\n\n"
+            "**Sessions:** send `X-Session-ID` to group requests; it defaults to the request id."
+            "\n\n"
             "**Tracing:** every response has an `X-Request-ID` header, and `/ask` returns "
             "a `trace_id` to open in Jaeger at `http://localhost:16686/trace/<trace_id>`.\n\n"
             '**Errors:** always `{"error": {code, message, request_id, details?}}`.'
@@ -95,6 +98,8 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
         lifespan=lifespan,
         # Documents X-Request-ID / traceparent on every route; the middleware does the work.
         dependencies=[Depends(document_common_headers)],
+        # Keep the key entered under "Authorize" across page reloads.
+        swagger_ui_parameters={"persistAuthorization": True},
     )
     app.state.settings = settings
 

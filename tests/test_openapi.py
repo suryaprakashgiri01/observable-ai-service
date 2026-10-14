@@ -55,3 +55,11 @@ def test_documented_examples_match_real_behaviour(client: TestClient) -> None:
     """The headers are documentation only; behaviour must be unchanged."""
     response = client.get("/health", headers={"X-Request-ID": "docs-1"})
     assert response.status_code == 200 and response.headers["X-Request-ID"] == "docs-1"
+
+
+def test_authorize_button_and_session_header_are_documented(client: TestClient) -> None:
+    spec = client.get("/openapi.json").json()
+    scheme = spec["components"]["securitySchemes"]["ApiKeyAuth"]
+    assert (scheme["type"], scheme["in"], scheme["name"]) == ("apiKey", "header", "X-API-Key")
+    assert spec["paths"]["/ask"]["post"]["security"] == [{"ApiKeyAuth": []}]
+    assert "X-Session-ID" in _params(spec, "/models", "get")

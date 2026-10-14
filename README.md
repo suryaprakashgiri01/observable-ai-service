@@ -35,7 +35,7 @@ provider keys everything still runs on `mock-echo`.
 
 | URL | What |
 |---|---|
-| http://localhost:8000/docs | OpenAPI / Swagger (fill the `X-API-Key` header field on each request) |
+| http://localhost:8000/docs | OpenAPI / Swagger: **Authorize** once, or fill the `X-API-Key` field per request |
 | http://localhost:16686 | Jaeger: search service `observable-ai-service` |
 | http://localhost:3000 | Grafana → *AI Service / Observable AI Service* |
 | http://localhost:9090 | Prometheus |
@@ -62,7 +62,9 @@ curl -s localhost:8000/ask \
 ```
 
 Request headers: `X-API-Key` (required), `X-Model-Id` (optional, wins over the body's
-`model_id`), `X-Request-ID` (optional, echoed back; generated when absent), `traceparent`
+`model_id`), `X-Request-ID` (optional, echoed back; generated when absent), `X-Session-ID`
+(optional; groups requests into one session in logs, Jaeger and Langfuse; defaults to the
+request id), `traceparent`
 (optional, W3C), and `X-Debug-Fault: llm_timeout | llm_error | tool_error` (demo only, when
 `ENABLE_FAULT_INJECTION=true`).
 
@@ -85,7 +87,7 @@ Every error has the same shape: `{"error": {"code", "message", "request_id", "de
 | **Logs** | stdout, one JSON object per line | Every line carries `request_id`, `trace_id`, `span_id`, `user_id`. One `request completed` access line per request. API keys are redacted. |
 | **Metrics** | `/metrics` → Prometheus → Grafana | RED per route; `llm_requests_total{model,outcome}`, `llm_retries_total`, `llm_fallbacks_total{from_model,to_model,reason}`, `llm_tokens_total`, `model_selection_total{source}`, `ask_errors_total{code}`, `auth_failures_total{reason}`, tool and ticket counters |
 | **Traces** | OTLP → Jaeger | `POST /ask` → `model.resolve` → `agent.plan` → `llm.call` (one per attempt) → `tool.*`, plus HTTP client spans and every SQL statement |
-| **LLM traces** | Langfuse (when keys set) | One generation per LLM call, with tokens. It uses the **same trace id** as Jaeger. |
+| **LLM traces** | Langfuse (when keys set) | One `ask` trace per request with user and session, and one nested generation per LLM attempt with tokens. It uses the **same trace id** as Jaeger. Sessions group requests sent with the same `X-Session-ID`. |
 
 The trace id is returned in every `/ask` response and stored on every ticket. That gives one
 path from a customer complaint ("ticket #42 looks wrong") to its request, its logs and its trace.

@@ -30,6 +30,22 @@ async def document_common_headers(
             },
         ),
     ] = None,
+    x_session_id: Annotated[
+        str | None,
+        Header(
+            alias="X-Session-ID",
+            description=(
+                "Optional. Groups several requests into one session: log field `session_id`, "
+                "span tag `session.id` in Jaeger, and a Langfuse session. Same format as "
+                "`X-Request-ID`. When omitted the session is the request id, so re-sending "
+                "the `X-Request-ID` of an earlier response joins that request's session."
+            ),
+            openapi_examples={
+                "none": {"summary": "One request = one session", "value": ""},
+                "demo": {"summary": "Group the demo calls", "value": "demo-session-1"},
+            },
+        ),
+    ] = None,
     traceparent: Annotated[
         str | None,
         Header(

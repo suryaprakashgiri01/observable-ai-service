@@ -35,6 +35,7 @@ class AskResponse(BaseModel):
         json_schema_extra={
             "example": {
                 "request_id": "demo-1",
+                "session_id": "demo-session-1",
                 "trace_id": "1fe3198591de872ea212189dbcb19138",
                 "answer": "Created ticket #1 (high priority): checkout page is slow",
                 "intent": "create_ticket",
@@ -67,6 +68,9 @@ class AskResponse(BaseModel):
     )
 
     request_id: str | None
+    session_id: str | None = Field(
+        description="`X-Session-ID` if sent, else the request id. A Langfuse session."
+    )
     trace_id: str | None = Field(description="Search this id in Jaeger (and Langfuse).")
     answer: str
     intent: str = Field(description="create_ticket | generate_report | general")
