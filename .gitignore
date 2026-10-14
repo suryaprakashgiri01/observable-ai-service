@@ -25,4 +25,7 @@ htmlcov/
 .vscode/
 .idea/
 .DS_Store
+
+# Local-only: personal dev notes, Postman collections, project-level Claude settings
+dev-notes/
 .claude/
