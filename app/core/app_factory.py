@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 import structlog
 from fastapi import FastAPI
 
-from app.api.routes import health, metrics
+from app.api.routes import ask, health, metrics, models, tickets
 from app.core.config import Settings, get_settings
 from app.core.logging import setup_logging
 from app.core.metrics import ASK_ERRORS
@@ -21,6 +21,10 @@ from app.core.telemetry import (
 from app.db.session import Database
 from app.exceptions.codes import ErrorCode
 from app.exceptions.handlers import register_error_hook, register_exception_handlers
+from app.llm.factory import build_http_client, build_providers
+from app.llm.langfuse_recorder import LangfuseRecorder
+from app.llm.orchestrator import LLMOrchestrator
+from app.llm.registry import sync_catalog
 from app.middleware.metrics import MetricsMiddleware
 from app.middleware.request_context import RequestContextMiddleware
 
@@ -34,6 +38,17 @@ def _count_error(code: ErrorCode) -> None:
 register_error_hook(_count_error)
 
 
+async def _sync_catalog(db: Database) -> None:
+    """Keep the built-in catalog current on boot. A failure (no schema yet) is
+    logged, not fatal: readiness reports the database, and `make seed` exists."""
+    try:
+        async with db.sessionmaker() as session:
+            changed = await sync_catalog(session)
+        logger.info("model catalog synced", changed=changed)
+    except Exception as exc:
+        logger.warning("model catalog sync skipped", error=type(exc).__name__)
+
+
 def create_app(settings: Settings | None = None, database: Database | None = None) -> FastAPI:
     settings = settings or get_settings()
     setup_logging(level=settings.log_level, log_format=settings.log_format)
@@ -44,10 +59,21 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
         db = database or Database.from_settings(settings)
         instrument_engine(db.engine, settings)
         app.state.db = db
+        if settings.auto_sync_catalog:
+            await _sync_catalog(db)
+
+        http_client = build_http_client(settings)
+        recorder = LangfuseRecorder.from_settings(settings)
+        app.state.orchestrator = LLMOrchestrator(
+            build_providers(http_client, settings), settings, recorder
+        )
         logger.info("service started", env=settings.app_env, version=settings.service_version)
         try:
             yield
         finally:
+            await http_client.aclose()
+            if recorder is not None:
+                recorder.shutdown()
             await db.dispose()
             shutdown_tracing()
             logger.info("service stopped")
@@ -71,6 +97,9 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
 
     app.include_router(health.router)
     app.include_router(metrics.router)
+    app.include_router(ask.router)
+    app.include_router(models.router)
+    app.include_router(tickets.router)
 
     # Outermost: the server span exists before our middleware logs anything.
     instrument_app(app, settings)

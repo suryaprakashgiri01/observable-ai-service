@@ -49,6 +49,8 @@ class Settings(BaseSettings):
     llm_max_tokens: int = Field(default=512, ge=16)
     llm_temperature: float = Field(default=0.2, ge=0, le=2)
     max_custom_models_per_user: int = 10
+    # Upsert the built-in catalog on startup, so a fresh database is usable at once.
+    auto_sync_catalog: bool = True
 
     # --- tracing -----------------------------------------------------------
     otel_enabled: bool = True
