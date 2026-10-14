@@ -64,7 +64,7 @@ async def get_current_user(
         logger.warning("api key rejected", reason="unknown", key_prefix=display_prefix(api_key))
         raise _reject("unknown", ErrorCode.AUTH_INVALID, "Invalid API key")
 
-    key, user = row.tuple()
+    key, user = row
     if key.revoked_at is not None:
         raise _reject("revoked", ErrorCode.AUTH_INVALID, "Invalid API key")
     if not user.is_active:

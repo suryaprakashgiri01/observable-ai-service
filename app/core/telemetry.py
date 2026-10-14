@@ -86,14 +86,15 @@ def current_trace_id() -> str | None:
     return format(ctx.trace_id, "032x") if ctx.is_valid else None
 
 
-def shutdown_tracing() -> None:
-    """Flush buffered spans on shutdown. Best-effort; never raises."""
-    global _provider
+def flush_tracing() -> None:
+    """Flush buffered spans when the app stops. Best-effort; never raises.
+
+    Only a flush: the provider is process-global and shuts itself down at exit
+    (``shutdown_on_exit``), so an app restarted in-process keeps tracing.
+    """
     if _provider is None:
         return
     try:
         _provider.force_flush(timeout_millis=5000)
-        _provider.shutdown()
     except Exception:
-        logger.warning("tracer provider shutdown failed", exc_info=True)
-    _provider = None
+        logger.warning("tracer provider flush failed", exc_info=True)

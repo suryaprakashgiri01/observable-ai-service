@@ -14,9 +14,9 @@ from app.core.logging import setup_logging
 from app.core.metrics import ASK_ERRORS
 from app.core.telemetry import (
     configure_tracing,
+    flush_tracing,
     instrument_app,
     instrument_engine,
-    shutdown_tracing,
 )
 from app.db.session import Database
 from app.exceptions.codes import ErrorCode
@@ -75,7 +75,7 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
             if recorder is not None:
                 recorder.shutdown()
             await db.dispose()
-            shutdown_tracing()
+            flush_tracing()
             logger.info("service stopped")
 
     app = FastAPI(

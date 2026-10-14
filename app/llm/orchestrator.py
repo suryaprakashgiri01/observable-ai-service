@@ -139,7 +139,9 @@ class LLMOrchestrator:
             async for retry in AsyncRetrying(
                 stop=stop_after_attempt(self._settings.llm_max_attempts),
                 wait=wait_exponential_jitter(
-                    initial=self._settings.llm_backoff_base_seconds, max=4.0
+                    multiplier=self._settings.llm_backoff_base_seconds,
+                    max=4.0,
+                    jitter=self._settings.llm_backoff_base_seconds,
                 ),
                 retry=retry_if_exception_type(TransientLLMError),
                 before_sleep=_before_sleep,
