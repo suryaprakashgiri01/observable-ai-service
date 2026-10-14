@@ -50,7 +50,8 @@ Grafana ─▶ Prometheus (provisioned dashboard)      Langfuse ◀─ LLM gener
   its own request/response shape (~50 lines each).
 - **Provider-agnostic JSON planning, not native tool calling.** Tool-calling formats differ per
   vendor and BYOM endpoints often lack them. The agent asks for a JSON object and validates it
-  with pydantic; one repair attempt, then degrade to a plain answer.
+  with pydantic; an invalid plan degrades to a plain answer (logged, and flagged on the
+  `agent.plan` span as `agent.plan_valid=false`) rather than a second, repair, LLM call.
 - **Mock provider is a first-class model** (`mock-echo`), rule-based intent detection. It makes the
   service runnable without keys and is the last link of the fallback chain.
 - **Fault injection via header**, gated by a setting, so failure modes are reproducible on demand.
