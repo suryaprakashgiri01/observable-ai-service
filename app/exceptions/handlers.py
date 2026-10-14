@@ -67,8 +67,8 @@ async def http_error_handler(_request: Request, exc: Exception) -> JSONResponse:
     return _envelope(code, str(exc.detail), exc.status_code)
 
 
-async def unhandled_error_handler(_request: Request, exc: Exception) -> JSONResponse:
-    logger.exception("unhandled error", error_type=type(exc).__name__)
+def render_unhandled(exc: Exception) -> JSONResponse:
+    logger.error("unhandled error", error_type=type(exc).__name__, exc_info=exc)
     span = trace.get_current_span()
     span.record_exception(exc)
     span.set_status(trace.Status(trace.StatusCode.ERROR, type(exc).__name__))
@@ -79,4 +79,3 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(AppError, app_error_handler)
     app.add_exception_handler(RequestValidationError, validation_error_handler)
     app.add_exception_handler(StarletteHTTPException, http_error_handler)
-    app.add_exception_handler(Exception, unhandled_error_handler)

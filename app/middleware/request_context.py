@@ -16,6 +16,7 @@ from starlette.datastructures import MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.core.context import set_request_id, set_user_id
+from app.exceptions.handlers import render_unhandled
 from app.middleware.routing import route_template
 
 REQUEST_ID_HEADER = "X-Request-ID"
@@ -54,17 +55,27 @@ class RequestContextMiddleware:
         set_user_id(None)
 
         status_code = 500
+        response_started = False
         started = time.perf_counter()
 
         async def send_wrapper(message: Message) -> None:
-            nonlocal status_code
+            nonlocal status_code, response_started
             if message["type"] == "http.response.start":
                 status_code = message["status"]
+                response_started = True
                 MutableHeaders(scope=message)[REQUEST_ID_HEADER] = request_id
             await send(message)
 
         try:
             await self.app(scope, receive, send_wrapper)
+        except Exception as exc:
+            # Rendered here rather than by Starlette's ServerErrorMiddleware, which
+            # sits outside this middleware: there the envelope would lose the
+            # request id header and the log line its context.
+            if response_started:
+                raise
+            response = render_unhandled(exc)
+            await response(scope, receive, send_wrapper)
         finally:
             duration_ms = round((time.perf_counter() - started) * 1000, 2)
             path = scope["path"]
