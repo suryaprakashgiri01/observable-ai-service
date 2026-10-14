@@ -20,28 +20,40 @@ CONTAINER ?= $(shell command -v docker 2>/dev/null || command -v podman 2>/dev/n
 
 # Probe the compose SUBCOMMAND, not just the binary: `podman compose` shells out
 # to an external provider, so podman being installed proves nothing.
+# Docker first, Podman as the fallback:
+#   1. `docker compose`  - Docker Desktop / Docker Engine with the compose plugin
+#   2. `docker-compose`  - standalone Compose v2 (also drives Podman through its docker socket)
+#   3. `podman compose`  - Podman only; it points its provider at podman's own socket
 COMPOSE ?= $(shell \
 	if docker compose version >/dev/null 2>&1; then echo "docker compose"; \
 	elif docker-compose version >/dev/null 2>&1; then echo "docker-compose"; \
 	elif podman compose version >/dev/null 2>&1; then echo "podman compose"; \
 	fi)
 
+# `podman compose` prints an "Executing external compose provider" banner on every call.
+export PODMAN_COMPOSE_WARNING_LOGS := false
+
 define require_compose
 	@test -n "$(COMPOSE)" || { \
 		echo "No working Compose implementation found."; \
-		echo "Install Docker Desktop, or one of:"; \
-		echo "    brew install docker-compose      # works with podman too"; \
-		echo "    pip install podman-compose"; \
+		echo "Install Docker Desktop, or Podman plus a compose provider:"; \
+		echo "    macOS:   brew install podman docker-compose"; \
+		echo "    Windows: winget install RedHat.Podman Docker.DockerCompose  (or Docker Desktop)"; \
+		echo "    Linux:   your package manager, or pip install podman-compose"; \
 		echo "Already have one? Point make at it: make $@ COMPOSE='docker-compose'"; \
 		exit 1; \
 	}
 endef
 
-.PHONY: help install dev up up-infra down logs lint format typecheck test test-cov test-ci check \
+.PHONY: help runtime psql install dev up up-infra down logs lint format typecheck test test-cov test-ci check \
         migrate migration downgrade seed docker-build clean demo-success demo-invalid demo-fault
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
+
+runtime: ## Show the container runtime and compose command make detected
+	@echo "container: $(or $(CONTAINER),<none found>)"
+	@echo "compose:   $(or $(COMPOSE),<none found>)"
 
 install: ## Create the venv and install runtime + dev dependencies
 	$(UV) sync --all-groups $(UVFLAGS)
@@ -76,9 +88,13 @@ down: ## Stop the stack
 	$(require_compose)
 	$(COMPOSE) down
 
-logs: ## Tail stack logs
+logs: ## Tail stack logs (one service: make logs s=app)
 	$(require_compose)
-	$(COMPOSE) logs -f
+	$(COMPOSE) logs -f $(s)
+
+psql: ## Open a psql shell in the postgres container
+	$(require_compose)
+	$(COMPOSE) exec postgres psql -U app -d ai_service
 
 lint: ## Lint
 	$(RUN) ruff check .

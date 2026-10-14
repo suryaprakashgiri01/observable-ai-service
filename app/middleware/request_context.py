@@ -12,14 +12,19 @@ import time
 import uuid
 
 import structlog
+from opentelemetry import trace
 from starlette.datastructures import MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from app.core.context import set_request_id, set_user_id
+from app.core.context import set_request_id, set_session_id, set_user_id
 from app.exceptions.handlers import render_unhandled
 from app.middleware.routing import route_template
 
 REQUEST_ID_HEADER = "X-Request-ID"
+# Groups several requests (a conversation, a test run) into one session in logs,
+# Jaeger and Langfuse. Defaults to the request id, so re-sending the X-Request-ID
+# from an earlier response also lands in that request's session.
+SESSION_ID_HEADER = "X-Session-ID"
 
 # Accept a caller's id only if it is short and printable; anything else is a
 # log-injection vector, so it is replaced rather than trusted.
@@ -48,11 +53,20 @@ class RequestContextMiddleware:
 
         headers = {k.decode("latin-1").lower(): v.decode("latin-1") for k, v in scope["headers"]}
         request_id = resolve_request_id(headers.get(REQUEST_ID_HEADER.lower()))
+        raw_session = headers.get(SESSION_ID_HEADER.lower())
+        session_id = (
+            raw_session if raw_session and _VALID_REQUEST_ID.match(raw_session) else request_id
+        )
 
         structlog.contextvars.clear_contextvars()
-        structlog.contextvars.bind_contextvars(request_id=request_id)
+        structlog.contextvars.bind_contextvars(request_id=request_id, session_id=session_id)
         set_request_id(request_id)
+        set_session_id(session_id)
         set_user_id(None)
+        # The server span is current here (OTel middleware is outermost): tag it for search.
+        span = trace.get_current_span()
+        span.set_attribute("request.id", request_id)
+        span.set_attribute("session.id", session_id)
 
         status_code = 500
         response_started = False
@@ -63,7 +77,9 @@ class RequestContextMiddleware:
             if message["type"] == "http.response.start":
                 status_code = message["status"]
                 response_started = True
-                MutableHeaders(scope=message)[REQUEST_ID_HEADER] = request_id
+                response_headers = MutableHeaders(scope=message)
+                response_headers[REQUEST_ID_HEADER] = request_id
+                response_headers[SESSION_ID_HEADER] = session_id
             await send(message)
 
         try:

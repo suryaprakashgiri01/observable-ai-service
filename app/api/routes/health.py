@@ -17,7 +17,29 @@ async def liveness(settings: AppSettings) -> dict[str, str]:
     return {"status": "ok", "version": settings.service_version}
 
 
-@router.get("/ready", summary="Readiness")
+@router.get(
+    "/ready",
+    summary="Readiness",
+    responses={
+        503: {
+            "description": "Database unreachable",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": "not_ready",
+                        "checks": {"database": "unavailable"},
+                        "providers": {
+                            "openai": False,
+                            "anthropic": False,
+                            "google": False,
+                            "mock": True,
+                        },
+                    }
+                }
+            },
+        }
+    },
+)
 async def readiness(db: Db, settings: AppSettings) -> JSONResponse:
     """Ready to take traffic: database reachable. Reports which LLM providers have
     credentials; none is fatal because `mock-echo` always answers."""

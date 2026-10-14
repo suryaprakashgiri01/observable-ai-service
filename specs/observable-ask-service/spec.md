@@ -45,13 +45,14 @@ UI; multi-tenant isolation; streaming responses; rate limiting; production secre
 ### `POST /ask`
 Request: `{"question": str 1..2000 chars (trimmed), "model_id": str | null}`
 Headers: `X-API-Key` (required), `X-Model-Id` (optional, wins over body), `X-Request-ID`
-(optional, echoed; generated when absent), `traceparent` (optional, W3C), `X-Debug-Fault`
+(optional, echoed; generated when absent), `X-Session-ID` (optional; groups requests into one
+session, defaults to the request id, echoed), `traceparent` (optional, W3C), `X-Debug-Fault`
 (optional, only honoured when `ENABLE_FAULT_INJECTION=true`: `llm_timeout` | `llm_error` | `tool_error`).
 
 Response 200:
 ```json
 {
-  "request_id": "…", "trace_id": "…32 hex…",
+  "request_id": "…", "session_id": "…", "trace_id": "…32 hex…",
   "answer": "…", "intent": "create_ticket | generate_report | general",
   "action": {"type": "ticket_created", "ticket": {…}} | {"type": "report", "report": {…}} | null,
   "model": {"requested": "…", "used": "…", "source": "header|body|user_default|global_default",
@@ -105,8 +106,13 @@ the `X-Request-ID` response header.
   instrumentation), child spans `model.resolve`, `agent.plan`, `llm.call` (one per attempt, with
   provider/model/tier/attempt/tokens/outcome), `tool.<name>`, outbound HTTP spans (httpx), and DB
   spans (SQLAlchemy). Incoming `traceparent` is honoured. `/health*` and `/metrics` are not traced.
-- **LLM traces**: when Langfuse keys are configured, each LLM call is recorded as a generation
-  with model, input, output, token usage, and the `request_id` as metadata.
+- **LLM traces**: when Langfuse keys are configured, each `/ask` is a Langfuse trace named `ask`
+  with `user_id` and `session_id` set, the question as input and the answer as output, tags for
+  intent, model, `fallback` and any fault. Every LLM attempt is a generation nested under it
+  (`llm.call <model> #<attempt>`) with model, input, output and token usage.
+- **Sessions**: `X-Session-ID` (default: the request id) is on every log line (`session_id`), on
+  the server span (`session.id`, searchable in Jaeger), in the response, and is the Langfuse
+  session. Never a metric label.
 
 ## Acceptance criteria
 1. `POST /ask` with a valid key and "Create a high priority ticket: checkout is slow" → 200,
@@ -124,6 +130,8 @@ the `X-Request-ID` response header.
 7. `PUT /models/default` persists per user; a second user's default is unaffected. *(API test)*
 8. `POST /models/custom` stores the key encrypted; `GET /models` never returns it. *(API test)*
 9. `X-Request-ID` sent by the caller is echoed and appears on every log line of that request. *(test)*
+9a. `X-Session-ID` groups requests: echoed, in the response, on the server span; defaults to the
+   request id, so re-using an earlier `X-Request-ID` joins that session. *(test)*
 10. `GET /metrics` exposes every metric family listed above. *(API test)*
 11. `/health` 200 without auth; `/health/ready` 503 when the DB is unreachable. *(API test)*
 12. With the compose stack up, Jaeger shows the span tree for one `/ask`. *(manual, demo script)*
