@@ -63,7 +63,7 @@ _wait-postgres:
 	@printf 'waiting for postgres'; \
 	for i in $$(seq 1 $(POSTGRES_WAIT_SECONDS)); do \
 		if $(COMPOSE) exec -T postgres pg_isready -U app -d ai_service >/dev/null 2>&1; then \
-			echo " ready on localhost:5432"; exit 0; \
+			echo " ready on localhost:$${POSTGRES_HOST_PORT:-5433}"; exit 0; \
 		fi; \
 		printf '.'; sleep 1; \
 	done; \

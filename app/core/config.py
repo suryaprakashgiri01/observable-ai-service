@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     fault_injection_delay_seconds: float = Field(default=1.0, ge=0)
 
     # --- database ----------------------------------------------------------
-    database_url: str = "postgresql+asyncpg://app:app@localhost:5432/ai_service"
+    database_url: str = "postgresql+asyncpg://app:app@localhost:5433/ai_service"
     db_echo: bool = False
     # Fernet key for bring-your-own-model API keys. Empty disables storing them.
     app_encryption_key: SecretStr = SecretStr("")
