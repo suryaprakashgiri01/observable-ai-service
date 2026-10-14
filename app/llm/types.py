@@ -67,6 +67,8 @@ class LLMError(Exception):
     """Base for provider failures. ``reason`` is a bounded metric label."""
 
     reason: str = "error"
+    # Attempts spent on the model before this error surfaced; set by the orchestrator.
+    attempts: int = 1
 
     def __init__(self, message: str, *, reason: str | None = None) -> None:
         super().__init__(message)

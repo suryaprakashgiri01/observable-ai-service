@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     log_format: Literal["json", "console", "auto"] = "auto"
     # Honour X-Debug-Fault. A demo/chaos switch; never on in prod.
     enable_fault_injection: bool = False
+    # How long an injected `llm_timeout` stalls before failing, per attempt.
+    fault_injection_delay_seconds: float = Field(default=1.0, ge=0)
 
     # --- database ----------------------------------------------------------
     database_url: str = "postgresql+asyncpg://app:app@localhost:5432/ai_service"
