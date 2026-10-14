@@ -6,6 +6,7 @@ RUN := $(UV) run $(UVFLAGS)
 
 APP_URL ?= http://localhost:8000
 # The demo user's key; `make seed` prints it, or pin it with SEED_DEMO_API_KEY in .env.
+# Recipes that send it start with @ so make does not echo the key to the terminal.
 API_KEY ?= $(or $(SEED_DEMO_API_KEY),$(shell sed -n 's/^SEED_DEMO_API_KEY=//p' .env 2>/dev/null | tail -1))
 
 # How long `make up` waits for postgres before giving up and showing its logs.
@@ -120,17 +121,17 @@ docker-build: ## Build the container image
 	$(CONTAINER) build -t observable-ai-service:local .
 
 demo-success: ## Demo: a request that creates a ticket
-	curl -sS -X POST $(APP_URL)/ask -H 'Content-Type: application/json' \
+	@curl -sS -X POST $(APP_URL)/ask -H 'Content-Type: application/json' \
 		-H "X-API-Key: $(API_KEY)" -H 'X-Request-ID: demo-success-1' \
 		-d '{"question":"Create a high priority ticket: checkout page is slow"}' | python3 -m json.tool
 
 demo-invalid: ## Demo: an invalid request (empty question)
-	curl -sS -X POST $(APP_URL)/ask -H 'Content-Type: application/json' \
+	@curl -sS -X POST $(APP_URL)/ask -H 'Content-Type: application/json' \
 		-H "X-API-Key: $(API_KEY)" -H 'X-Request-ID: demo-invalid-1' \
 		-d '{"question":""}' | python3 -m json.tool
 
 demo-fault: ## Demo: an LLM timeout that retries, then falls back
-	curl -sS -X POST $(APP_URL)/ask -H 'Content-Type: application/json' \
+	@curl -sS -X POST $(APP_URL)/ask -H 'Content-Type: application/json' \
 		-H "X-API-Key: $(API_KEY)" -H 'X-Request-ID: demo-fault-1' -H 'X-Debug-Fault: llm_timeout' \
 		-d '{"question":"Give me a revenue report for last 7 days"}' | python3 -m json.tool
 
