@@ -16,7 +16,7 @@ management, horizontal scaling.
 
 ```mermaid
 flowchart LR
-    user([API caller<br/>curl / Postman / Swagger])
+    user([API caller<br/>curl / Postman / Swagger / web console /ui])
     subgraph svc[observable-ai-service]
         api[FastAPI app]
     end
@@ -47,7 +47,8 @@ flowchart LR
 | Component | Responsibility | Tech | Port |
 |---|---|---|---|
 | API | Auth, `/ask`, tickets, models, jobs, notifications, health, metrics | FastAPI, uvicorn, Python 3.12 | 8000 |
-| Middleware | Request/session ids, access log, RED metrics, OTel server span | raw ASGI | – |
+| Web console | `/ui`: Authorize, auth state, request builder, panels, request log | static HTML/CSS/JS served by the app (no build) | 8000 |
+| Middleware | Request/session ids, access log, RED metrics, OTel server span, console security headers | raw ASGI | – |
 | Agent | JSON plan from the LLM, then a tool | `app/services/agent.py` | – |
 | LLM orchestrator | Model resolution, retries, fallback chain, per-attempt spans | `app/llm/*`, httpx, tenacity | – |
 | Job runner | Background async `/ask`, status hook, recovery | asyncio tasks | – |
@@ -240,6 +241,9 @@ ask_jobs.
 - Request ids and session ids are validated (`[A-Za-z0-9._:-]{1,128}`) against log injection.
 - Errors never echo internals; 500s carry only the request id.
 - Fault injection is off by default.
+- Roles: `user` and `admin`; `/admin/*` requires admin and returns 403 otherwise.
+- The console sends the key only to its own origin; strict CSP (`default-src 'self'`), no
+  inline script, no third-party assets; the key lives in `sessionStorage` unless remembered.
 
 ## 9. Deployment
 
