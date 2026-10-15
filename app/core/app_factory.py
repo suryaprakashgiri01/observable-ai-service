@@ -7,7 +7,6 @@ from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import Depends, FastAPI
-from fastapi.routing import APIRoute
 
 from app.api.openapi import document_common_headers
 from app.api.routes import ask, health, metrics, models, tickets
@@ -116,12 +115,13 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
     app.include_router(models.router)
     app.include_router(tickets.router)
 
+    # The OpenAPI paths are the public, stable list of route templates: newer FastAPI
+    # wraps included routers, so app.routes no longer holds the APIRoute objects.
     init_metric_series(
         routes=[
-            (method, route.path)
-            for route in app.routes
-            if isinstance(route, APIRoute)
-            for method in sorted(route.methods or ())
+            (method.upper(), path)
+            for path, operations in app.openapi()["paths"].items()
+            for method in operations
         ],
         error_codes=[code.value for code in ErrorCode],
         kafka_topics=(),
