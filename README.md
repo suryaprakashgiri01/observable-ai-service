@@ -146,5 +146,5 @@ make help
 
 Spec-driven: [spec](specs/observable-ask-service/spec.md) ·
 [plan](specs/observable-ask-service/plan.md) · [tasks](specs/observable-ask-service/tasks.md).
-Write-ups: [architecture](docs/architecture.md) · [demo script](docs/demo-script.md) ·
+Write-ups: [high-level design](docs/hld.md) · [architecture](docs/architecture.md) · [demo script](docs/demo-script.md) ·
 [debugging insight](docs/debugging-insight.md) · [tradeoffs](docs/tradeoffs.md).
