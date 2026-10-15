@@ -4,6 +4,7 @@
     uv run python -m scripts.cleanup --yes              # everything, no questions
     uv run python -m scripts.cleanup --only db,langfuse
     uv run python -m scripts.cleanup --yes --reset-users   # also users/keys, then reseed
+    uv run python -m scripts.cleanup --dry-run          # only count what would go
     make cleanup ARGS="--yes"
 
 Parts:
@@ -55,6 +56,56 @@ async def clean_db(cfg: Config, reset_users: bool) -> None:
         log.info("db cleaned", custom_models_removed=custom.rowcount, users_reset=reset_users)
     finally:
         await engine.dispose()
+
+
+async def count_db(cfg: Config) -> dict[str, int]:
+    engine = create_async_engine(cfg.database_url)
+    counts: dict[str, int] = {}
+    try:
+        async with engine.connect() as conn:
+            for table in ("tickets", "notifications", "ask_jobs", "user_model_config"):
+                counts[table] = int(
+                    (await conn.execute(text(f"SELECT count(*) FROM {table}"))).scalar_one()
+                )
+            counts["custom models"] = int(
+                (
+                    await conn.execute(
+                        text("SELECT count(*) FROM models WHERE owner_user_id IS NOT NULL")
+                    )
+                ).scalar_one()
+            )
+    finally:
+        await engine.dispose()
+    return counts
+
+
+def dry_run(cfg: Config, parts: list[str], environment: str) -> None:
+    """Count what each part would remove. Deletes nothing."""
+    if "db" in parts:
+        try:
+            log.info("db would delete", **asyncio.run(count_db(cfg)))
+        except Exception as exc:
+            log.error("db not reachable", error=type(exc).__name__)
+    if "metrics" in parts:
+        try:
+            r = httpx.get(f"{cfg.prometheus}/api/v1/series", params={"match[]": JOB}, timeout=10)
+            log.info("prometheus would delete", series=len(r.json().get("data", [])), match=JOB)
+        except httpx.HTTPError as exc:
+            log.error("prometheus not reachable", error=type(exc).__name__)
+    services = running_services()
+    for part, service in (("traces", "jaeger"), ("alerts", "alertmanager"), ("kafka", "kafka")):
+        if part in parts:
+            log.info(f"{part}: would restart/clear {service}", running=service in services)
+    if "langfuse" in parts:
+        if not cfg.langfuse_enabled:
+            log.info("langfuse keys not set", skipped="langfuse")
+        else:
+            try:
+                ids = langfuse_trace_ids(cfg, environment)
+                log.info("langfuse would delete", traces=len(ids), environment=environment)
+            except httpx.HTTPError as exc:
+                log.error("langfuse list failed", error=str(exc)[:200])
+    log.info("dry run: nothing was deleted")
 
 
 def reseed() -> None:
@@ -181,6 +232,7 @@ def main() -> None:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument("--yes", "-y", action="store_true", help="do not ask")
+    parser.add_argument("--dry-run", action="store_true", help="only count what would be removed")
     parser.add_argument("--only", default=",".join(PARTS), help=f"comma list of {', '.join(PARTS)}")
     parser.add_argument(
         "--reset-users", action="store_true", help="also delete users/keys, then reseed"
@@ -197,7 +249,10 @@ def main() -> None:
         sys.exit(f"unknown parts: {', '.join(sorted(unknown))}")
     environment = args.langfuse_env or read_env().get("APP_ENV", "local")
 
-    log.info("cleanup", parts=parts, langfuse_environment=environment)
+    log.info("cleanup", parts=parts, langfuse_environment=environment, dry_run=args.dry_run)
+    if args.dry_run:
+        dry_run(cfg, parts, environment)
+        return
     if "db" in parts and confirm(
         "Delete tickets, notifications, jobs, user configs, custom models?", args.yes
     ):
