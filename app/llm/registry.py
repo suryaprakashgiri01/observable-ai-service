@@ -210,6 +210,8 @@ class ModelRegistry:
                 model, source = await self.require(MOCK_MODEL_ID, user), "mock"
 
         # Ordered, deduplicated, never the selected model; unavailable ones are skipped.
+        # mock-echo is held back: the orchestrator always appends it as the last resort,
+        # so a user or global fallback of mock-echo cannot cut the chain short.
         candidates = [
             config.fallback_model_id if config else None,
             *self._settings.fallback_chain,
@@ -218,7 +220,7 @@ class ModelRegistry:
         fallbacks: list[ResolvedModel] = []
         seen = {model.id}
         for candidate in candidates:
-            if not candidate or candidate in seen:
+            if not candidate or candidate in seen or candidate == MOCK_MODEL_ID:
                 continue
             seen.add(candidate)
             resolved = await self._try(candidate, user)

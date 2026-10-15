@@ -153,11 +153,14 @@ async def test_registry_builds_the_chain_in_order(session: AsyncSession) -> None
     registry = ModelRegistry(session, settings)
     user = await _user(session)
     picked = await registry.resolve(user, header_id="mock-premium", body_id=None)
-    # gpt-4.1 has no key here, so it is skipped; mock-echo is the global fallback.
-    assert [m.id for m in picked.fallbacks] == ["mock-standard", "mock-economy", MOCK_MODEL_ID]
+    # gpt-4.1 has no key here, so it is skipped; mock-echo is appended by the orchestrator.
+    assert [m.id for m in picked.fallbacks] == ["mock-standard", "mock-economy"]
     await registry.set_fallback(user, "mock-economy")
     picked = await registry.resolve(user, header_id="mock-premium", body_id=None)
-    assert [m.id for m in picked.fallbacks] == ["mock-economy", "mock-standard", MOCK_MODEL_ID]
+    assert [m.id for m in picked.fallbacks] == ["mock-economy", "mock-standard"]
+    await registry.set_fallback(user, MOCK_MODEL_ID)
+    picked = await registry.resolve(user, header_id="mock-premium", body_id=None)
+    assert [m.id for m in picked.fallbacks] == ["mock-standard", "mock-economy"]
 
 
 async def test_mock_tiers_have_simulated_latency() -> None:
@@ -343,10 +346,10 @@ async def test_fallback_prefers_user_choice_and_never_equals_selected(
     user = await _user(session)
     picked = await registry.resolve(user, header_id="gemini-2.5-pro", body_id=None)
     assert picked.fallback is not None and picked.fallback.id == "gemini-2.5-flash-lite"
-    await registry.set_fallback(user, MOCK_MODEL_ID)
+    await registry.set_fallback(user, "mock-standard")
     picked = await registry.resolve(user, header_id="gemini-2.5-pro", body_id=None)
-    assert picked.fallback is not None and picked.fallback.id == MOCK_MODEL_ID
-    picked = await registry.resolve(user, header_id=MOCK_MODEL_ID, body_id=None)
+    assert picked.fallback is not None and picked.fallback.id == "mock-standard"
+    picked = await registry.resolve(user, header_id="mock-standard", body_id=None)
     assert picked.fallback is not None and picked.fallback.id == "gemini-2.5-flash-lite"
 
 
