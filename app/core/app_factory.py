@@ -9,7 +9,7 @@ import structlog
 from fastapi import Depends, FastAPI
 
 from app.api.openapi import document_common_headers
-from app.api.routes import ask, health, metrics, models, tickets
+from app.api.routes import alerts, ask, health, metrics, models, tickets
 from app.core.config import Settings, get_settings
 from app.core.logging import setup_logging
 from app.core.metrics import ASK_ERRORS, init_metric_series
@@ -114,6 +114,7 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
     app.include_router(ask.router)
     app.include_router(models.router)
     app.include_router(tickets.router)
+    app.include_router(alerts.router)
 
     # The OpenAPI paths are the public, stable list of route templates: newer FastAPI
     # wraps included routers, so app.routes no longer holds the APIRoute objects.

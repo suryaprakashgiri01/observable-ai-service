@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, Uuid
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -97,3 +97,25 @@ class Ticket(Base):
     request_id: Mapped[str | None] = mapped_column(String(128))
     trace_id: Mapped[str | None] = mapped_column(String(32))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Notification(Base):
+    """An Alertmanager alert, kept for the in-app notification list."""
+
+    __tablename__ = "notifications"
+    __table_args__ = (UniqueConstraint("fingerprint", "starts_at", name="uq_notifications_alert"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    alertname: Mapped[str] = mapped_column(String(200), nullable=False)
+    severity: Mapped[str] = mapped_column(String(32), nullable=False, default="none")
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    summary: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    labels: Mapped[dict[str, str]] = mapped_column(JSON, nullable=False, default=dict)
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

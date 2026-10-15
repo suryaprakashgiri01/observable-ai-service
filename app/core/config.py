@@ -55,6 +55,15 @@ class Settings(BaseSettings):
     # Upsert the built-in catalog on startup, so a fresh database is usable at once.
     auto_sync_catalog: bool = True
 
+    # --- alerts ----------------------------------------------------------
+    # Bearer token Alertmanager sends to POST /alerts/webhook. Change it outside local.
+    alert_webhook_token: SecretStr = SecretStr("local-alert-token")
+    # Public base URLs, used in links the API and scripts print.
+    grafana_url: str = "http://localhost:3000"
+    jaeger_url: str = "http://localhost:16686"
+    prometheus_url: str = "http://localhost:9090"
+    alertmanager_url: str = "http://localhost:9093"
+
     # --- tracing -----------------------------------------------------------
     otel_enabled: bool = True
     otel_service_name: str = SERVICE_NAME
