@@ -69,7 +69,7 @@ up: ## Start the full stack: app, postgres, jaeger, prometheus, grafana
 
 up-infra: ## Start only backing services (run the app with `make dev`)
 	$(require_compose)
-	$(COMPOSE) up -d postgres jaeger prometheus grafana
+	$(COMPOSE) up -d postgres jaeger prometheus alertmanager grafana
 	@$(MAKE) --no-print-directory _wait-postgres
 
 _wait-postgres:

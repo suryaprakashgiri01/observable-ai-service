@@ -50,9 +50,21 @@ services:
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --web.enable-lifecycle
-    volumes: ["./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro"]
+      # Lets `make cleanup` delete this service's series (local only).
+      - --web.enable-admin-api
+    volumes:
+      - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/prometheus-alerts.yml:/etc/prometheus/alerts.yml:ro
     ports: ["9090:9090"]
     # `make dev` runs the app on the host; this lets Prometheus scrape it there too.
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    depends_on: [alertmanager]
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    command: ["--config.file=/etc/alertmanager/alertmanager.yml"]
+    volumes: ["./deploy/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro"]
+    ports: ["9093:9093"]
     extra_hosts: ["host.docker.internal:host-gateway"]
 
   grafana:
@@ -66,7 +78,7 @@ services:
       - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
     ports: ["3000:3000"]
-    depends_on: [prometheus, jaeger]
+    depends_on: [prometheus, jaeger, alertmanager]
 
   # --- optional: Kafka fan-out (profile "kafka"; `make up-kafka`) ---------------
   kafka:
