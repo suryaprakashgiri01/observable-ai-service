@@ -77,4 +77,5 @@ All bounded label sets are initialised to 0 at startup.
 6. Tickets have UUID ids; `alembic upgrade head` / `downgrade -1` / `upgrade head` all succeed
    on Postgres with data present. *(manual run + model test)*
 7. Every metric family in the registry is referenced by a dashboard panel. *(test)*
-8. Scripts run on macOS and Windows (Python), with `--help`.
+8. Scripts run on macOS and Windows (Python), with `--help`. `demo_walkthrough` and `cleanup`
+   are dry runs unless `--apply` is given: the walkthrough prints its plan, cleanup only counts.

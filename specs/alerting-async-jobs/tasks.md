@@ -12,3 +12,4 @@
 | T8 | Optional Kafka publisher, feature flag, compose profile | 5 |
 | T9 | Scripts: traffic, cleanup, demo walkthrough | 8 |
 | T10 | Tests and docs | all |
+| T11 | Dry run by default for the walkthrough and cleanup scripts; `--apply` to act | 8 |

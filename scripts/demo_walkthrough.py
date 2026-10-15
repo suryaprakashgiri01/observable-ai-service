@@ -4,9 +4,12 @@ Every step logs the request it sends, the response it gets, why it matters, and
 where to look (Jaeger trace, Grafana panel, Prometheus query, Langfuse session,
 Alertmanager, Kafka UI).
 
-    uv run python -m scripts.demo_walkthrough            # run straight through
-    uv run python -m scripts.demo_walkthrough --pause    # press Enter between steps
-    make demo ARGS="--pause --session my-take-2"
+    uv run python -m scripts.demo_walkthrough                    # dry run: print the plan, send nothing
+    uv run python -m scripts.demo_walkthrough --apply            # call the API for real
+    uv run python -m scripts.demo_walkthrough --apply --pause    # press Enter between steps
+    make demo ARGS="--apply --pause --session my-take-2"
+
+Dry run is the default so nothing is created (tickets, jobs, alerts) by accident.
 """
 
 from __future__ import annotations
@@ -29,15 +32,18 @@ REPORT = {"question": "Give me a revenue report for the last 7 days"}
 
 
 class Walkthrough:
-    def __init__(self, cfg: Config, session: str, pause: bool, wait_alerts: int) -> None:
+    def __init__(
+        self, cfg: Config, session: str, pause: bool, wait_alerts: int, apply: bool
+    ) -> None:
         self.cfg = cfg
+        self.apply = apply
         self.session = session
         self.pause = pause
         self.wait_alerts = wait_alerts
         self.http = httpx.Client(base_url=cfg.base_url, timeout=60)
         self.step_no = 0
         self.ticket_id: str | None = None
-        self.langfuse_project = self._langfuse_project()
+        self.langfuse_project = self._langfuse_project() if apply else None
 
     # --- output helpers -----------------------------------------------------------
     def step(self, title: str) -> None:
@@ -94,6 +100,10 @@ class Walkthrough:
         if key:
             sent["X-API-Key"] = self.cfg.api_key
             shown["X-API-Key"] = self.cfg.api_key[:12] + "…"
+        if not self.apply:
+            log.info("→ would send", method=method, path=path, headers=shown, body=body)
+            log.info("← (dry run: not sent)", hint="add --apply to call the API")
+            return httpx.Response(200, json={}, request=httpx.Request(method, path))
         log.info("→ request", method=method, path=path, headers=shown, body=body)
         response = self.http.request(method, path, headers=sent, json=body)
         level = (
@@ -145,16 +155,18 @@ class Walkthrough:
     def run(self) -> None:
         log.info(
             "demo walkthrough",
+            mode="APPLY (real calls)" if self.apply else "DRY RUN (nothing is sent; use --apply)",
             api=self.cfg.base_url,
             session=self.session,
             swagger=f"{self.cfg.base_url}/docs",
         )
         # Quiet prep so the fallback demo is deterministic: chain premium → standard → economy.
-        self.http.put(
-            "/models/fallback",
-            headers={"X-API-Key": self.cfg.api_key},
-            json={"model_id": "mock-standard"},
-        )
+        if self.apply:
+            self.http.put(
+                "/models/fallback",
+                headers={"X-API-Key": self.cfg.api_key},
+                json={"model_id": "mock-standard"},
+            )
 
         self.step("Is the service ready?")
         r = self.call("GET", "/health/ready", key=False)
@@ -204,9 +216,9 @@ class Walkthrough:
         self.jaeger(data.get("trace_id"))
         self.langfuse()
 
-        if self.ticket_id:
+        if self.ticket_id or not self.apply:
             self.step("Read the ticket back (UUID id)")
-            r = self.call("GET", f"/tickets/{self.ticket_id}")
+            r = self.call("GET", f"/tickets/{self.ticket_id or '<ticket-id>'}")
             self.why(
                 "The ticket stores the trace_id that created it: support can jump to the trace."
             )
@@ -299,7 +311,12 @@ class Walkthrough:
 
         if self.wait_alerts:
             self.step("Alerts arrive as in-app notifications")
-            self._wait_for_alerts()
+            if self.apply:
+                self._wait_for_alerts()
+            else:
+                log.info(
+                    "would poll", path="/notifications?status=firing", for_seconds=self.wait_alerts
+                )
             self.link("Alertmanager", f"{self.cfg.alertmanager}/#/alerts")
             self.grafana(60, "Firing alerts")
 
@@ -311,6 +328,9 @@ class Walkthrough:
         )
 
     def _poll_job(self, status_url: str | None) -> None:
+        if not self.apply:
+            log.info("would poll", path="/ask/jobs/<job_id>", until="completed | failed")
+            return
         if not status_url:
             return
         seen = 0
@@ -376,6 +396,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
+    parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="call the API for real (default: dry run, prints the plan)",
+    )
     parser.add_argument("--pause", action="store_true", help="wait for Enter between steps")
     parser.add_argument("--session", default=f"demo-{uuid.uuid4().hex[:6]}", help="X-Session-ID")
     parser.add_argument(
@@ -386,8 +411,9 @@ def main() -> None:
     )
     args = parser.parse_args()
     cfg = Config.load(args.base_url)
-    cfg.require_api_key()
-    Walkthrough(cfg, args.session, args.pause, args.wait_alerts).run()
+    if args.apply:
+        cfg.require_api_key()
+    Walkthrough(cfg, args.session, args.pause, args.wait_alerts, args.apply).run()
 
 
 if __name__ == "__main__":

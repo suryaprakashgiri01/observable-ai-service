@@ -29,7 +29,8 @@ make install                  # venv + pre-commit hooks
 make up                       # app :8000, postgres :5433, jaeger :16686, prometheus :9090,
                               # alertmanager :9093, grafana :3000
 make seed                     # model catalog + users (admin, demo, analyst); prints any generated keys
-make demo ARGS="--pause"      # coloured walkthrough of the API, with links to every UI
+make demo                     # dry run: prints the walkthrough plan, sends nothing
+make demo ARGS="--apply --pause"   # the real coloured walkthrough, with links to every UI
 ```
 
 Optional: `make up-kafka` (broker :9094, Kafka UI :8080) and `KAFKA_ENABLED=true` in `.env`.
@@ -134,10 +135,10 @@ Log lines carry the same `trace_id`, so you can jump between the two. See
 make dev          # app with reload, against `make up-infra`
 make check        # ruff, mypy --strict, pytest with an 80% coverage gate (what CI runs)
 make demo-success # / demo-invalid / demo-fault: the three demo requests
-make demo         # guided walkthrough with coloured logs and links (ARGS="--pause")
+make demo         # walkthrough plan (dry run); ARGS="--apply --pause" to call the API
 make traffic      # move every dashboard metric (ARGS="--rounds 5 --outage")
-make cleanup      # reset DB rows, metrics, traces, alerts, Kafka, Langfuse local traces
-                  # (ARGS="--dry-run" to only count, "--yes" to skip the questions)
+make cleanup      # counts what would be reset (dry run); ARGS="--apply" deletes DB rows,
+                  # metrics, traces, alerts, Kafka topics, Langfuse local traces ("--yes": no questions)
 make dashboard    # regenerate the Grafana JSON from deploy/grafana/build_dashboard.py
 make migrate      # alembic upgrade head;  make downgrade = one step back
 make help

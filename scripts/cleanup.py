@@ -1,11 +1,14 @@
 """Reset what the demo and tests leave behind: DB rows, metrics, traces, alerts, Kafka, Langfuse.
 
-    uv run python -m scripts.cleanup                    # asks before each part
-    uv run python -m scripts.cleanup --yes              # everything, no questions
-    uv run python -m scripts.cleanup --only db,langfuse
-    uv run python -m scripts.cleanup --yes --reset-users   # also users/keys, then reseed
-    uv run python -m scripts.cleanup --dry-run          # only count what would go
-    make cleanup ARGS="--yes"
+    uv run python -m scripts.cleanup                           # dry run (default): only counts
+    uv run python -m scripts.cleanup --apply                   # delete, asking before each part
+    uv run python -m scripts.cleanup --apply --yes             # delete everything, no questions
+    uv run python -m scripts.cleanup --apply --only db,langfuse
+    uv run python -m scripts.cleanup --apply --yes --reset-users   # also users/keys, then reseed
+    make cleanup                     # dry run
+    make cleanup ARGS="--apply --yes"
+
+Dry run is the default: nothing is deleted unless --apply is given.
 
 Parts:
   db        tickets, notifications, async jobs, per-user model config, custom models
@@ -232,7 +235,12 @@ def main() -> None:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument("--yes", "-y", action="store_true", help="do not ask")
-    parser.add_argument("--dry-run", action="store_true", help="only count what would be removed")
+    parser.add_argument(
+        "--apply", action="store_true", help="actually delete (default: dry run, only counts)"
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="only count (the default; kept for clarity)"
+    )
     parser.add_argument("--only", default=",".join(PARTS), help=f"comma list of {', '.join(PARTS)}")
     parser.add_argument(
         "--reset-users", action="store_true", help="also delete users/keys, then reseed"
@@ -249,8 +257,15 @@ def main() -> None:
         sys.exit(f"unknown parts: {', '.join(sorted(unknown))}")
     environment = args.langfuse_env or read_env().get("APP_ENV", "local")
 
-    log.info("cleanup", parts=parts, langfuse_environment=environment, dry_run=args.dry_run)
-    if args.dry_run:
+    if args.apply and args.dry_run:
+        sys.exit("--apply and --dry-run are mutually exclusive")
+    log.info(
+        "cleanup",
+        mode="APPLY (deletes)" if args.apply else "DRY RUN (counts only; use --apply to delete)",
+        parts=parts,
+        langfuse_environment=environment,
+    )
+    if not args.apply:
         dry_run(cfg, parts, environment)
         return
     if "db" in parts and confirm(

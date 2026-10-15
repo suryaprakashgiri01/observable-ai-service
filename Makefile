@@ -141,10 +141,10 @@ seed: ## Seed the model catalog and the initial users (idempotent)
 traffic: ## Generate traffic that moves every dashboard metric (ARGS="--rounds 5 --outage")
 	$(RUN) python -m scripts.generate_traffic $(ARGS)
 
-demo: ## Coloured API walkthrough for the demo (ARGS="--pause --session take-1")
+demo: ## API walkthrough; dry run by default (ARGS="--apply --pause --session take-1")
 	$(RUN) python -m scripts.demo_walkthrough $(ARGS)
 
-cleanup: ## Reset DB rows, metrics, traces, alerts, Kafka, Langfuse local traces (ARGS="--yes")
+cleanup: ## Reset DB/metrics/traces/alerts/Kafka/Langfuse; dry run by default (ARGS="--apply --yes")
 	$(RUN) python -m scripts.cleanup $(ARGS)
 
 dashboard: ## Regenerate the Grafana dashboard JSON from deploy/grafana/build_dashboard.py
