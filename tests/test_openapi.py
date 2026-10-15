@@ -29,7 +29,7 @@ def test_ask_documents_model_and_fault_headers_with_examples(client: TestClient)
 
 def test_api_key_is_a_header_field_on_protected_routes_only(client: TestClient) -> None:
     spec = client.get("/openapi.json").json()
-    public = {"/health", "/health/ready", "/metrics", "/alerts/webhook"}
+    public = {"/health", "/health/ready", "/metrics", "/alerts/webhook", "/ui/config"}
     for path, methods in spec["paths"].items():
         for method in methods:
             params = _params(spec, path, method)

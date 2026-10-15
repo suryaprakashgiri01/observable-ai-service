@@ -60,6 +60,8 @@ class AuthenticatedUser:
     email: str
     name: str
     role: str
+    # Which key authenticated this request (prefix only; the key itself is never kept).
+    key_prefix: str = ""
 
     @property
     def is_admin(self) -> bool:
@@ -107,7 +109,9 @@ async def get_current_user(
     set_user_id(user_id)
     structlog.contextvars.bind_contextvars(user_id=user_id)
     trace.get_current_span().set_attribute("enduser.id", user_id)
-    return AuthenticatedUser(id=user.id, email=user.email, name=user.name, role=user.role)
+    return AuthenticatedUser(
+        id=user.id, email=user.email, name=user.name, role=user.role, key_prefix=key.key_prefix
+    )
 
 
 CurrentUser = Annotated[AuthenticatedUser, Depends(get_current_user)]

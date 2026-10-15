@@ -40,6 +40,7 @@ provider keys everything still runs on `mock-echo`.
 
 | URL | What |
 |---|---|
+| **http://localhost:8000/ui** | **Web console**: Authorize, auth state, Ask request builder, models, tickets, notifications, 401/403 checks |
 | http://localhost:8000/docs | OpenAPI / Swagger: **Authorize** once, or fill the `X-API-Key` field per request |
 | http://localhost:16686 | Jaeger: search service `observable-ai-service` |
 | http://localhost:3000 | Grafana → *AI Service / Observable AI Service* |
@@ -62,6 +63,10 @@ provider keys everything still runs on `mock-echo`.
 | PUT | `/models/fallback` | key | Set *your* fallback model |
 | POST | `/models/custom` | key | Register a bring-your-own OpenAI-compatible model |
 | DELETE | `/models/custom/{id}` | key | Remove it |
+| GET | `/me` | key | Who the key belongs to (email, role); 401 if invalid |
+| GET | `/admin/users` | key, **admin** | Users and their keys; **403 `FORBIDDEN`** for non-admins |
+| GET | `/tickets?limit=` | key | Your newest tickets |
+| GET | `/ui`, `/ui/config` | – | Web console and its public config |
 | GET | `/health`, `/health/ready` | – | Liveness; readiness (database) |
 | GET | `/metrics` | – | Prometheus exposition |
 
@@ -109,6 +114,28 @@ series whose first sample is already 1.
 The fallback chain is: selected model → your fallback → `LLM_FALLBACK_CHAIN`
 (default `mock-standard,mock-economy`) → `mock-echo`.
 
+### Web console
+
+`http://localhost:8000/ui` is served by the app itself: plain HTML, CSS and JavaScript, no build
+step and no CDN, so it works offline and ships in the same image.
+
+- **Authorize** like Swagger: paste a key (kept for the tab, or remembered on the device). The
+  pill shows *Authorized · email (role)*, *Not authorized · 401 code*, or *No key*.
+- **Nothing loads by itself**: every panel has a button that fetches its data.
+- **Ask builder**:
+  - a Sync/Async toggle, the question with presets, and the model via `X-Model-Id`, the body, or both
+  - `X-Request-ID`, `X-Session-ID` and `traceparent`, plus fault and count
+  - a per-call key override (my key / no key / bad key), a live request preview and **Copy as curl**
+  - results with the model chain and links to Jaeger and Langfuse; async jobs show a live status timeline
+- **Models**: a table with tier/provider filters, search, sorting, set default/fallback, and BYOM.
+- **Routes & auth**: one button per case: 401 `AUTH_REQUIRED` / `AUTH_INVALID`, **403
+  `FORBIDDEN`** (`/admin/users` with a user key), webhook 401, 404 and 422.
+- **Request log**: every call the console made, with status, latency, request id and trace link.
+- **Theme**: System / Light / Dark toggle, saved per device.
+
+Full guide (flow, routes, every tab, its options and the API calls behind them):
+[docs/web-console.md](docs/web-console.md).
+
 ### Async jobs and Kafka
 
 `POST /ask` with `Prefer: respond-async` returns **202** and a `job_id`. The job runs in the
@@ -146,5 +173,5 @@ make help
 
 Spec-driven: [spec](specs/observable-ask-service/spec.md) ·
 [plan](specs/observable-ask-service/plan.md) · [tasks](specs/observable-ask-service/tasks.md).
-Write-ups: [high-level design](docs/hld.md) · [architecture](docs/architecture.md) · [demo script](docs/demo-script.md) ·
+Write-ups: [high-level design](docs/hld.md) · [web console guide](docs/web-console.md) · [architecture](docs/architecture.md) · [demo script](docs/demo-script.md) ·
 [debugging insight](docs/debugging-insight.md) · [tradeoffs](docs/tradeoffs.md).

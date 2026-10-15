@@ -79,7 +79,7 @@ class Settings(BaseSettings):
     otel_service_name: str = SERVICE_NAME
     # Base endpoint; the exporter appends /v1/traces. Empty = spans stay in-process.
     otel_exporter_otlp_endpoint: str = ""
-    otel_excluded_urls: str = "health,metrics"
+    otel_excluded_urls: str = "health,metrics,/ui/"
 
     # --- Langfuse ----------------------------------------------------------
     langfuse_public_key: str = ""

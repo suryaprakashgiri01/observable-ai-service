@@ -3,14 +3,14 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Path
+from fastapi import APIRouter, Path, Query
 
 from app.api.deps import Session
 from app.api.openapi import AUTH_ERRORS, error_responses
 from app.auth.dependencies import CurrentUser
 from app.exceptions import AppError, ErrorCode
 from app.repositories.tickets import TicketRepository
-from app.schemas.tickets import TicketOut
+from app.schemas.tickets import TicketList, TicketOut
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
 
@@ -24,6 +24,22 @@ TicketId = Annotated[
         },
     ),
 ]
+
+
+@router.get(
+    "",
+    response_model=TicketList,
+    summary="List my tickets",
+    responses=error_responses(*AUTH_ERRORS),
+)
+async def list_tickets(
+    user: CurrentUser,
+    session: Session,
+    limit: Annotated[int, Query(ge=1, le=100, description="Newest first.")] = 20,
+) -> TicketList:
+    """The caller's tickets, newest first. Other users' tickets are never included."""
+    rows = await TicketRepository(session).list_for_user(user.id, limit=limit)
+    return TicketList(items=[TicketOut.model_validate(r) for r in rows], total=len(rows))
 
 
 @router.get(

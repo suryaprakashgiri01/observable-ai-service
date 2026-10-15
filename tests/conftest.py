@@ -26,6 +26,7 @@ from app.llm.registry import sync_catalog
 DEMO_KEY = "oas_test_demo_key"
 ANALYST_KEY = "oas_test_analyst_key"
 INACTIVE_KEY = "oas_test_inactive_key"
+ADMIN_KEY = "oas_test_admin_key"
 
 
 def make_settings(**overrides: Any) -> Settings:
@@ -86,12 +87,13 @@ async def prepare(db: Database) -> None:
         await conn.run_sync(Base.metadata.create_all)
     async with db.sessionmaker() as session:
         await sync_catalog(session)
-        for email, name, key, active in (
-            ("demo@example.com", "Demo", DEMO_KEY, True),
-            ("analyst@example.com", "Analyst", ANALYST_KEY, True),
-            ("gone@example.com", "Gone", INACTIVE_KEY, False),
+        for email, name, key, active, role in (
+            ("demo@example.com", "Demo", DEMO_KEY, True, "user"),
+            ("analyst@example.com", "Analyst", ANALYST_KEY, True, "user"),
+            ("gone@example.com", "Gone", INACTIVE_KEY, False, "user"),
+            ("admin@example.com", "Admin", ADMIN_KEY, True, "admin"),
         ):
-            user = User(email=email, name=name, role="user", is_active=active)
+            user = User(email=email, name=name, role=role, is_active=active)
             session.add(user)
             await session.flush()
             session.add(

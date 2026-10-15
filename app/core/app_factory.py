@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import structlog
 from fastapi import Depends, FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from app.api.openapi import document_common_headers
-from app.api.routes import alerts, ask, health, metrics, models, tickets
+from app.api.routes import alerts, ask, health, metrics, models, tickets, ui, users
 from app.core.config import Settings, get_settings
 from app.core.logging import setup_logging
 from app.core.metrics import ASK_ERRORS, init_metric_series
@@ -29,9 +31,12 @@ from app.llm.orchestrator import LLMOrchestrator
 from app.llm.registry import sync_catalog
 from app.middleware.metrics import MetricsMiddleware
 from app.middleware.request_context import RequestContextMiddleware
+from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.services.jobs import JobRunner
 
 logger = structlog.get_logger(__name__)
+
+UI_DIR = Path(__file__).resolve().parents[1] / "ui" / "static"
 
 
 def _count_error(code: ErrorCode) -> None:
@@ -124,6 +129,7 @@ def create_app(
     # Last added runs first: request context wraps metrics, so the access log
     # and the metrics agree on the status of the same request.
     app.add_middleware(MetricsMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(RequestContextMiddleware)
     register_exception_handlers(app)
 
@@ -133,6 +139,11 @@ def create_app(
     app.include_router(models.router)
     app.include_router(tickets.router)
     app.include_router(alerts.router)
+    app.include_router(users.router)
+    app.include_router(ui.router)
+
+    # The web console: static files under /ui (routes above, like /ui/config, win).
+    app.mount("/ui", StaticFiles(directory=UI_DIR, html=True), name="ui")
 
     # The OpenAPI paths are the public, stable list of route templates: newer FastAPI
     # wraps included routers, so app.routes no longer holds the APIRoute objects.

@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI Service Console</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%233b6fd8'/%3E%3C/svg%3E">
+  <!-- Classic (blocking) script so the saved theme applies before first paint: no flash. -->
+  <script src="js/theme-boot.js"></script>
+  <link rel="stylesheet" href="app.css">
+  <script type="module" src="js/main.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true"></span>
+      <div>
+        <div class="brand-name">AI Service Console</div>
+        <div class="brand-sub" id="env-line">observable-ai-service</div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <label class="session-field" title="Sent as X-Session-ID on every call: groups this console's calls in logs, Jaeger and Langfuse">
+        <span>Session</span>
+        <input id="session-id" spellcheck="false" autocomplete="off">
+      </label>
+      <button id="theme-toggle" class="btn btn-ghost theme-toggle" type="button" aria-label="Theme">◐ System</button>
+      <button id="auth-pill" class="pill pill-none" type="button" title="Click to check the key with GET /me">
+        <span class="dot"></span><span id="auth-pill-text">No key</span>
+      </button>
+      <button id="authorize-btn" class="btn btn-primary" type="button">Authorize</button>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button role="tab" data-tab="status" aria-selected="true">Status</button>
+    <button role="tab" data-tab="ask">Ask</button>
+    <button role="tab" data-tab="tickets">Tickets</button>
+    <button role="tab" data-tab="models">Models</button>
+    <button role="tab" data-tab="notifications">Notifications <span class="count" id="unread-count" hidden></span></button>
+    <button role="tab" data-tab="routes">Routes &amp; auth</button>
+  </nav>
+
+  <main id="panels">
+    <section id="panel-status" class="panel" data-panel="status"></section>
+    <section id="panel-ask" class="panel" data-panel="ask" hidden></section>
+    <section id="panel-tickets" class="panel" data-panel="tickets" hidden></section>
+    <section id="panel-models" class="panel" data-panel="models" hidden></section>
+    <section id="panel-notifications" class="panel" data-panel="notifications" hidden></section>
+    <section id="panel-routes" class="panel" data-panel="routes" hidden></section>
+  </main>
+
+  <aside class="log" id="request-log" aria-label="Request log">
+    <button class="log-toggle" id="log-toggle" type="button" aria-expanded="false">
+      <span>Request log</span><span class="count" id="log-count">0</span><span class="chev" aria-hidden="true">▴</span>
+    </button>
+    <div class="log-body" id="log-body" hidden>
+      <div class="log-actions">
+        <span class="muted">Every call this console makes, newest first.</span>
+        <button class="btn btn-ghost btn-sm" id="log-clear" type="button">Clear</button>
+      </div>
+      <ol class="log-list" id="log-list"></ol>
+    </div>
+  </aside>
+
+  <dialog id="auth-dialog" class="dialog">
+    <form method="dialog" id="auth-form">
+      <h2>Authorize</h2>
+      <p class="muted">Paste an API key from <code>.env</code> (<code>SEED_DEMO_API_KEY</code> for a user, <code>SEED_ADMIN_API_KEY</code> for an admin). It is sent as <code>X-API-Key</code> to this origin only.</p>
+      <label class="field">
+        <span>X-API-Key</span>
+        <input id="auth-key" type="password" autocomplete="off" spellcheck="false" placeholder="oas_…">
+      </label>
+      <label class="check">
+        <input id="auth-remember" type="checkbox">
+        <span>Remember on this device (localStorage). Otherwise it is forgotten when the tab closes.</span>
+      </label>
+      <div class="dialog-actions">
+        <button class="btn btn-ghost" value="logout" id="auth-logout" type="submit">Log out</button>
+        <span class="spacer"></span>
+        <button class="btn btn-ghost" value="cancel" type="submit">Cancel</button>
+        <button class="btn btn-primary" value="save" type="submit">Authorize &amp; check</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

@@ -102,7 +102,9 @@ class RequestContextMiddleware:
                 "status": status_code,
                 "duration_ms": duration_ms,
             }
-            if path in _QUIET_PATHS and status_code < 400:
+            # Console static files (/ui/...) are page loads, not API traffic.
+            quiet = path in _QUIET_PATHS or (path.startswith("/ui") and path != "/ui/config")
+            if quiet and status_code < 400:
                 logger.debug("request completed", **fields)
             elif status_code >= 500:
                 logger.error("request completed", **fields)
