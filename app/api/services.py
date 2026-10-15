@@ -11,6 +11,7 @@ from app.integrations.events import EventPublisher
 from app.llm.langfuse_recorder import LangfuseRecorder
 from app.llm.orchestrator import LLMOrchestrator
 from app.llm.registry import ModelRegistry
+from app.services.jobs import JobRunner
 
 
 def _registry(session: Session, settings: AppSettings) -> ModelRegistry:
@@ -32,7 +33,13 @@ def _events(request: Request) -> EventPublisher:
     return events
 
 
+def _jobs(request: Request) -> JobRunner:
+    jobs: JobRunner = request.app.state.jobs
+    return jobs
+
+
 Registry = Annotated[ModelRegistry, Depends(_registry)]
 Orchestrator = Annotated[LLMOrchestrator, Depends(_orchestrator)]
 Langfuse = Annotated[LangfuseRecorder | None, Depends(_langfuse)]
 Events = Annotated[EventPublisher, Depends(_events)]
+Jobs = Annotated[JobRunner, Depends(_jobs)]

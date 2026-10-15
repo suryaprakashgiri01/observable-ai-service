@@ -29,6 +29,7 @@ from app.llm.orchestrator import LLMOrchestrator
 from app.llm.registry import sync_catalog
 from app.middleware.metrics import MetricsMiddleware
 from app.middleware.request_context import RequestContextMiddleware
+from app.services.jobs import JobRunner
 
 logger = structlog.get_logger(__name__)
 
@@ -78,10 +79,17 @@ def create_app(
         app.state.orchestrator = LLMOrchestrator(
             build_providers(http_client, settings), settings, recorder
         )
+        jobs = JobRunner(db, app.state.orchestrator, events, recorder)
+        app.state.jobs = jobs
+        try:
+            await jobs.recover_interrupted()
+        except Exception as exc:
+            logger.warning("ask job recovery skipped", error=type(exc).__name__)
         logger.info("service started", env=settings.app_env, version=settings.service_version)
         try:
             yield
         finally:
+            await jobs.shutdown()
             await http_client.aclose()
             await events.stop()
             if recorder is not None:

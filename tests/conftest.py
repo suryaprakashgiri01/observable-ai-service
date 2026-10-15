@@ -74,6 +74,9 @@ def memory_database() -> Database:
         "sqlite+aiosqlite://",
         poolclass=StaticPool,
         connect_args={"check_same_thread": False},
+        # One shared connection: never roll it back on return, or one session's
+        # cleanup would undo another's (the async job runs beside the request).
+        pool_reset_on_return=None,
     )
     return Database(engine)
 

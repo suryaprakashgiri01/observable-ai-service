@@ -119,3 +119,30 @@ class Notification(Base):
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
     )
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class AskJob(Base):
+    """An async /ask: its status, every transition, and the final result or error."""
+
+    __tablename__ = "ask_jobs"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="queued")
+    question: Mapped[str] = mapped_column(Text, nullable=False)
+    model_requested: Mapped[str] = mapped_column(String(64), nullable=False)
+    current_model: Mapped[str | None] = mapped_column(String(64))
+    attempts: Mapped[int] = mapped_column(nullable=False, default=0)
+    events: Mapped[list[dict[str, object]]] = mapped_column(JSON, nullable=False, default=list)
+    result: Mapped[dict[str, object] | None] = mapped_column(JSON)
+    error: Mapped[dict[str, object] | None] = mapped_column(JSON)
+    request_id: Mapped[str | None] = mapped_column(String(128))
+    session_id: Mapped[str | None] = mapped_column(String(128))
+    trace_id: Mapped[str | None] = mapped_column(String(32))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

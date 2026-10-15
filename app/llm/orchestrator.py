@@ -33,6 +33,7 @@ from app.llm.catalog import CATALOG, MOCK_MODEL_ID
 from app.llm.langfuse_recorder import LangfuseRecorder
 from app.llm.providers.base import LLMProvider
 from app.llm.registry import Selection
+from app.llm.status import report
 from app.llm.types import (
     ChatMessage,
     LLMError,
@@ -109,6 +110,9 @@ class LLMOrchestrator:
                     LLM_FALLBACKS.labels(
                         from_model=model.id, to_model=nxt.id, reason=exc.reason
                     ).inc()
+                    await report(
+                        "fallback", from_model=model.id, model_id=nxt.id, reason=exc.reason
+                    )
                     trace.get_current_span().add_event(
                         "llm.fallback",
                         {"from_model": model.id, "to_model": nxt.id, "reason": exc.reason},
@@ -180,11 +184,14 @@ class LLMOrchestrator:
             started = time.perf_counter()
             result: LLMResult | None = None
             error: LLMError | None = None
+            await report("running", model_id=spec.id, attempt=attempt)
             try:
                 result = await self._call(model, messages, fault)
                 return result
             except LLMError as exc:
                 error = exc
+                if isinstance(exc, TransientLLMError) and attempt < self._settings.llm_max_attempts:
+                    await report("retrying", model_id=spec.id, attempt=attempt, reason=exc.reason)
                 span.record_exception(exc)
                 span.set_status(trace.Status(trace.StatusCode.ERROR, exc.reason))
                 raise
