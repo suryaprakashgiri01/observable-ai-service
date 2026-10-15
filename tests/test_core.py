@@ -146,3 +146,17 @@ def test_every_log_line_of_a_request_carries_its_request_id(
     assert access["route"] == "/ask" and access["status"] == 200
     assert len(access["trace_id"]) == 32
     assert any(line.get("user_id") for line in ours)
+
+
+def test_bounded_series_exist_at_zero_before_any_event(client: TestClient) -> None:
+    """A series born at 1 is invisible to rate()/increase(); pre-created ones are not."""
+    text = client.get("/metrics").text
+    for line in (
+        'http_requests_total{method="POST",route="/ask",status="502"}',
+        'http_requests_total{method="GET",route="/models",status="403"}',
+        'ask_errors_total{code="TOOL_FAILED"}',
+        'auth_failures_total{reason="revoked"}',
+        'agent_tool_calls_total{outcome="error",tool="generate_report"}',
+    ):
+        assert line in text, line
+    assert "# TYPE python_gc_collections_total counter" in text

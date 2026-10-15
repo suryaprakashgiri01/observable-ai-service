@@ -7,12 +7,13 @@ from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import Depends, FastAPI
+from fastapi.routing import APIRoute
 
 from app.api.openapi import document_common_headers
 from app.api.routes import ask, health, metrics, models, tickets
 from app.core.config import Settings, get_settings
 from app.core.logging import setup_logging
-from app.core.metrics import ASK_ERRORS
+from app.core.metrics import ASK_ERRORS, init_metric_series
 from app.core.telemetry import (
     configure_tracing,
     flush_tracing,
@@ -114,6 +115,17 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
     app.include_router(ask.router)
     app.include_router(models.router)
     app.include_router(tickets.router)
+
+    init_metric_series(
+        routes=[
+            (method, route.path)
+            for route in app.routes
+            if isinstance(route, APIRoute)
+            for method in sorted(route.methods or ())
+        ],
+        error_codes=[code.value for code in ErrorCode],
+        kafka_topics=(),
+    )
 
     # Outermost: the server span exists before our middleware logs anything.
     instrument_app(app, settings)
