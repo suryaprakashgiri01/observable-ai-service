@@ -26,9 +26,14 @@ Prerequisites: [uv](https://docs.astral.sh/uv/), and Docker or Podman with a com
 ```bash
 cp .env.example .env          # optional: add OPENAI/ANTHROPIC/GEMINI keys, Langfuse keys
 make install                  # venv + pre-commit hooks
-make up                       # app :8000, postgres :5433, jaeger :16686, prometheus :9090, grafana :3000
+make up                       # app :8000, postgres :5433, jaeger :16686, prometheus :9090,
+                              # alertmanager :9093, grafana :3000
 make seed                     # model catalog + users (admin, demo, analyst); prints any generated keys
+make demo                     # dry run: prints the walkthrough plan, sends nothing
+make demo ARGS="--apply --pause"   # the real coloured walkthrough, with links to every UI
 ```
+
+Optional: `make up-kafka` (broker :9094, Kafka UI :8080) and `KAFKA_ENABLED=true` in `.env`.
 
 Set `SEED_DEMO_API_KEY` in `.env` before `make seed` if you want a fixed demo key. With no
 provider keys everything still runs on `mock-echo`.
@@ -38,14 +43,20 @@ provider keys everything still runs on `mock-echo`.
 | http://localhost:8000/docs | OpenAPI / Swagger: **Authorize** once, or fill the `X-API-Key` field per request |
 | http://localhost:16686 | Jaeger: search service `observable-ai-service` |
 | http://localhost:3000 | Grafana → *AI Service / Observable AI Service* |
-| http://localhost:9090 | Prometheus |
+| http://localhost:9090 | Prometheus (`/alerts` for rule state) |
+| http://localhost:9093 | Alertmanager |
+| http://localhost:8080 | Kafka UI (only with `make up-kafka`) |
 
 ## API
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| POST | `/ask` | key | Ask; may create a ticket or build a report |
-| GET | `/tickets/{id}` | key | Read back one of your tickets |
+| POST | `/ask` | key | Ask; may create a ticket or build a report. `Prefer: respond-async` → 202 + job |
+| GET | `/ask/jobs/{job_id}` | key | Async job: status, attempts, every transition, result |
+| GET | `/tickets/{id}` | key | Read back one of your tickets (UUID) |
+| GET | `/notifications?status=&unread=` | key | Alerts received from Alertmanager |
+| POST | `/notifications/{id}/read` | key | Mark one read |
+| POST | `/alerts/webhook` | bearer | Alertmanager receiver (not for users) |
 | GET | `/models?tier=&provider=` | key | Catalog by tier, with `available`, `is_default`, `is_fallback` |
 | PUT | `/models/default` | key | Set *your* default model |
 | PUT | `/models/fallback` | key | Set *your* fallback model |
@@ -64,9 +75,9 @@ curl -s localhost:8000/ask \
 Request headers: `X-API-Key` (required), `X-Model-Id` (optional, wins over the body's
 `model_id`), `X-Request-ID` (optional, echoed back; generated when absent), `X-Session-ID`
 (optional; groups requests into one session in logs, Jaeger and Langfuse; defaults to the
-request id), `traceparent`
-(optional, W3C), and `X-Debug-Fault: llm_timeout | llm_error | tool_error` (demo only, when
-`ENABLE_FAULT_INJECTION=true`).
+request id), `traceparent` (optional, W3C), `Prefer: respond-async` (optional, async job),
+and, demo only (`ENABLE_FAULT_INJECTION=true`), `X-Debug-Fault: llm_timeout | llm_error |
+tool_error` with `X-Debug-Fault-Count: N` (the first N models of the fallback chain fail).
 
 Every error has the same shape: `{"error": {"code", "message", "request_id", "details?"}}`.
 
@@ -77,7 +88,8 @@ Every error has the same shape: `{"error": {"code", "message", "request_id", "de
 | OpenAI | `gpt-4.1-nano` | `gpt-4.1-mini` | `gpt-4.1` |
 | Anthropic | `claude-haiku-5-5` | `claude-sonnet-5-5` | `claude-opus-5-5` |
 | Google | `gemini-2.5-flash-lite` | `gemini-2.5-flash` | `gemini-2.5-pro` |
-| Mock | `mock-echo` (always available) | | |
+| Mock | `mock-economy` | `mock-standard` | `mock-premium` |
+| Mock (last resort) | `mock-echo`, always appended at the end of every fallback chain | | |
 | BYOM | anything you register (Ollama, vLLM, OpenRouter…) | | |
 
 ## Observability
@@ -88,9 +100,26 @@ Every error has the same shape: `{"error": {"code", "message", "request_id", "de
 | **Metrics** | `/metrics` → Prometheus → Grafana | RED per route; `llm_requests_total{model,outcome}`, `llm_retries_total`, `llm_fallbacks_total{from_model,to_model,reason}`, `llm_tokens_total`, `model_selection_total{source}`, `ask_errors_total{code}`, `auth_failures_total{reason}`, tool and ticket counters |
 | **Traces** | OTLP → Jaeger | `POST /ask` → `model.resolve` → `agent.plan` → `llm.call` (one per attempt) → `tool.*`, plus HTTP client spans and every SQL statement |
 | **LLM traces** | Langfuse (when keys set) | One `ask` trace per request with user and session, and one nested generation per LLM attempt with tokens. It uses the **same trace id** as Jaeger. Sessions group requests sent with the same `X-Session-ID`. |
+| **Alerts** | Prometheus rules → Alertmanager → `POST /alerts/webhook` → `GET /notifications` | `Http5xxErrors`, `Http4xxAuthErrors` (401/403 only; other 4xx are logged, not alerted), `HighErrorRate`, `LlmFallbacks`, `AskLatencyHigh`, `AskJobsFailing`, `ServiceDown`. Optionally also published to Kafka. |
+
+Every bounded metric series is created at 0 at startup, so the first 5xx (or the first of any
+error code) shows in Grafana immediately. Without that, `rate()`/`increase()` cannot see a
+series whose first sample is already 1.
+
+The fallback chain is: selected model → your fallback → `LLM_FALLBACK_CHAIN`
+(default `mock-standard,mock-economy`) → `mock-echo`.
+
+### Async jobs and Kafka
+
+`POST /ask` with `Prefer: respond-async` returns **202** and a `job_id`. The job runs in the
+background, inside the same trace and session. Every status change
+(`queued → running → retrying / fallback → completed | failed`) is stored on the job, so
+`GET /ask/jobs/{id}` shows it in flight. With the feature flag `KAFKA_ENABLED=true`, job
+transitions also go to `ai-service.ask-status` and alerts to `ai-service.notifications`.
+With the flag off, nothing connects to Kafka.
 
 The trace id is returned in every `/ask` response and stored on every ticket. That gives one
-path from a customer complaint ("ticket #42 looks wrong") to its request, its logs and its trace.
+path from a customer complaint ("this ticket looks wrong") to its request, its logs and its trace.
 
 ### Engineering improvement: distributed tracing + retry/fallback
 
@@ -106,10 +135,16 @@ Log lines carry the same `trace_id`, so you can jump between the two. See
 make dev          # app with reload, against `make up-infra`
 make check        # ruff, mypy --strict, pytest with an 80% coverage gate (what CI runs)
 make demo-success # / demo-invalid / demo-fault: the three demo requests
+make demo         # walkthrough plan (dry run); ARGS="--apply --pause" to call the API
+make traffic      # move every dashboard metric (ARGS="--rounds 5 --outage")
+make cleanup      # counts what would be reset (dry run); ARGS="--apply" deletes DB rows,
+                  # metrics, traces, alerts, Kafka topics, Langfuse local traces ("--yes": no questions)
+make dashboard    # regenerate the Grafana JSON from deploy/grafana/build_dashboard.py
+make migrate      # alembic upgrade head;  make downgrade = one step back
 make help
 ```
 
 Spec-driven: [spec](specs/observable-ask-service/spec.md) ·
 [plan](specs/observable-ask-service/plan.md) · [tasks](specs/observable-ask-service/tasks.md).
-Write-ups: [architecture](docs/architecture.md) · [demo script](docs/demo-script.md) ·
+Write-ups: [high-level design](docs/hld.md) · [architecture](docs/architecture.md) · [demo script](docs/demo-script.md) ·
 [debugging insight](docs/debugging-insight.md) · [tradeoffs](docs/tradeoffs.md).

@@ -33,6 +33,7 @@ from app.llm.catalog import CATALOG, MOCK_MODEL_ID
 from app.llm.langfuse_recorder import LangfuseRecorder
 from app.llm.providers.base import LLMProvider
 from app.llm.registry import Selection
+from app.llm.status import report
 from app.llm.types import (
     ChatMessage,
     LLMError,
@@ -77,10 +78,9 @@ class LLMOrchestrator:
         messages: Sequence[ChatMessage],
         *,
         fault: str | None = None,
+        fault_count: int = 1,
     ) -> Completion:
-        chain = [selection.model]
-        if selection.fallback is not None:
-            chain.append(selection.fallback)
+        chain = [selection.model, *selection.fallbacks]
         # The rule-based mock is the last resort. It is appended even when the
         # selected model *is* the mock, so an injected fault on it still degrades.
         if chain[-1].id != MOCK_MODEL_ID or len(chain) == 1:
@@ -90,8 +90,9 @@ class LLMOrchestrator:
         tried: list[str] = []
         for index, model in enumerate(chain):
             tried.append(model.id)
-            # Faults hit only the selected model, so the fallback path is what the demo shows.
-            model_fault = fault if index == 0 else None
+            # Faults hit the first `fault_count` models, never the last resort, so the
+            # demo always ends on an answer and shows each hop of the chain.
+            model_fault = fault if index < min(fault_count, len(chain) - 1) else None
             try:
                 result, used = await self._with_retries(model, messages, model_fault)
                 attempts += used
@@ -109,6 +110,9 @@ class LLMOrchestrator:
                     LLM_FALLBACKS.labels(
                         from_model=model.id, to_model=nxt.id, reason=exc.reason
                     ).inc()
+                    await report(
+                        "fallback", from_model=model.id, model_id=nxt.id, reason=exc.reason
+                    )
                     trace.get_current_span().add_event(
                         "llm.fallback",
                         {"from_model": model.id, "to_model": nxt.id, "reason": exc.reason},
@@ -180,11 +184,14 @@ class LLMOrchestrator:
             started = time.perf_counter()
             result: LLMResult | None = None
             error: LLMError | None = None
+            await report("running", model_id=spec.id, attempt=attempt)
             try:
                 result = await self._call(model, messages, fault)
                 return result
             except LLMError as exc:
                 error = exc
+                if isinstance(exc, TransientLLMError) and attempt < self._settings.llm_max_attempts:
+                    await report("retrying", model_id=spec.id, attempt=attempt, reason=exc.reason)
                 span.record_exception(exc)
                 span.set_status(trace.Status(trace.StatusCode.ERROR, exc.reason))
                 raise

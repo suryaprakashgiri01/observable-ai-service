@@ -37,12 +37,15 @@ class AskResponse(BaseModel):
                 "request_id": "demo-1",
                 "session_id": "demo-session-1",
                 "trace_id": "1fe3198591de872ea212189dbcb19138",
-                "answer": "Created ticket #1 (high priority): checkout page is slow",
+                "answer": (
+                    "Created ticket 3f2a9c1e-6b7d-4e0a-9c51-2d8e7f1b4a60 "
+                    "(high priority): checkout page is slow"
+                ),
                 "intent": "create_ticket",
                 "action": {
                     "type": "ticket_created",
                     "ticket": {
-                        "id": 1,
+                        "id": "3f2a9c1e-6b7d-4e0a-9c51-2d8e7f1b4a60",
                         "title": "checkout page is slow",
                         "description": "",
                         "priority": "high",

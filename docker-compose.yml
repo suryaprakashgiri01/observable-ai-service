@@ -13,6 +13,8 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://app:app@postgres:5432/ai_service
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+      # Only used when KAFKA_ENABLED=true (set in .env) and `make up-kafka` is running.
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       LOG_FORMAT: json
     # Migrations on start keep the demo one command; a real deploy runs them as a job.
     command: ["sh", "-c", "alembic upgrade head && python -m app.main"]
@@ -48,9 +50,21 @@ services:
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --web.enable-lifecycle
-    volumes: ["./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro"]
+      # Lets `make cleanup` delete this service's series (local only).
+      - --web.enable-admin-api
+    volumes:
+      - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/prometheus-alerts.yml:/etc/prometheus/alerts.yml:ro
     ports: ["9090:9090"]
     # `make dev` runs the app on the host; this lets Prometheus scrape it there too.
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    depends_on: [alertmanager]
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    command: ["--config.file=/etc/alertmanager/alertmanager.yml"]
+    volumes: ["./deploy/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro"]
+    ports: ["9093:9093"]
     extra_hosts: ["host.docker.internal:host-gateway"]
 
   grafana:
@@ -64,7 +78,38 @@ services:
       - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
     ports: ["3000:3000"]
-    depends_on: [prometheus, jaeger]
+    depends_on: [prometheus, jaeger, alertmanager]
+
+  # --- optional: Kafka fan-out (profile "kafka"; `make up-kafka`) ---------------
+  kafka:
+    image: apache/kafka:3.8.0
+    profiles: ["kafka"]
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      # kafka:9092 for containers, localhost:9094 for the app under `make dev`.
+      KAFKA_LISTENERS: PLAINTEXT://:9092,EXTERNAL://:9094,CONTROLLER://:29093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_NUM_PARTITIONS: 3
+    ports: ["9094:9094"]
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:v0.7.2
+    profiles: ["kafka"]
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      DYNAMIC_CONFIG_ENABLED: "true"
+    ports: ["8080:8080"]
+    depends_on: [kafka]
 
 volumes:
   pgdata:

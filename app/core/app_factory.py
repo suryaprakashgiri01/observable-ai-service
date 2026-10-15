@@ -9,10 +9,10 @@ import structlog
 from fastapi import Depends, FastAPI
 
 from app.api.openapi import document_common_headers
-from app.api.routes import ask, health, metrics, models, tickets
+from app.api.routes import alerts, ask, health, metrics, models, tickets
 from app.core.config import Settings, get_settings
 from app.core.logging import setup_logging
-from app.core.metrics import ASK_ERRORS
+from app.core.metrics import ASK_ERRORS, init_metric_series
 from app.core.telemetry import (
     configure_tracing,
     flush_tracing,
@@ -22,12 +22,14 @@ from app.core.telemetry import (
 from app.db.session import Database
 from app.exceptions.codes import ErrorCode
 from app.exceptions.handlers import register_error_hook, register_exception_handlers
+from app.integrations.events import EventPublisher, build_publisher
 from app.llm.factory import build_http_client, build_providers
 from app.llm.langfuse_recorder import LangfuseRecorder
 from app.llm.orchestrator import LLMOrchestrator
 from app.llm.registry import sync_catalog
 from app.middleware.metrics import MetricsMiddleware
 from app.middleware.request_context import RequestContextMiddleware
+from app.services.jobs import JobRunner
 
 logger = structlog.get_logger(__name__)
 
@@ -50,7 +52,11 @@ async def _sync_catalog(db: Database) -> None:
         logger.warning("model catalog sync skipped", error=type(exc).__name__)
 
 
-def create_app(settings: Settings | None = None, database: Database | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    database: Database | None = None,
+    publisher: EventPublisher | None = None,
+) -> FastAPI:
     settings = settings or get_settings()
     setup_logging(level=settings.log_level, log_format=settings.log_format)
     configure_tracing(settings)
@@ -63,17 +69,29 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
         if settings.auto_sync_catalog:
             await _sync_catalog(db)
 
+        events = publisher or build_publisher(settings)
+        await events.start()
+        app.state.events = events
+
         http_client = build_http_client(settings)
         recorder = LangfuseRecorder.from_settings(settings)
         app.state.langfuse = recorder
         app.state.orchestrator = LLMOrchestrator(
             build_providers(http_client, settings), settings, recorder
         )
+        jobs = JobRunner(db, app.state.orchestrator, events, recorder)
+        app.state.jobs = jobs
+        try:
+            await jobs.recover_interrupted()
+        except Exception as exc:
+            logger.warning("ask job recovery skipped", error=type(exc).__name__)
         logger.info("service started", env=settings.app_env, version=settings.service_version)
         try:
             yield
         finally:
+            await jobs.shutdown()
             await http_client.aclose()
+            await events.stop()
             if recorder is not None:
                 recorder.shutdown()
             await db.dispose()
@@ -114,6 +132,23 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
     app.include_router(ask.router)
     app.include_router(models.router)
     app.include_router(tickets.router)
+    app.include_router(alerts.router)
+
+    # The OpenAPI paths are the public, stable list of route templates: newer FastAPI
+    # wraps included routers, so app.routes no longer holds the APIRoute objects.
+    init_metric_series(
+        routes=[
+            (method.upper(), path)
+            for path, operations in app.openapi()["paths"].items()
+            for method in operations
+        ],
+        error_codes=[code.value for code in ErrorCode],
+        kafka_topics=(
+            (settings.kafka_topic_notifications, settings.kafka_topic_ask_status)
+            if settings.kafka_enabled
+            else ()
+        ),
+    )
 
     # Outermost: the server span exists before our middleware logs anything.
     instrument_app(app, settings)

@@ -43,7 +43,11 @@ class ModelView:
 class Selection:
     model: ResolvedModel
     source: SelectionSource
-    fallback: ResolvedModel | None
+    fallbacks: tuple[ResolvedModel, ...] = ()
+
+    @property
+    def fallback(self) -> ResolvedModel | None:
+        return self.fallbacks[0] if self.fallbacks else None
 
 
 def _spec(row: LLMModel) -> ModelSpec:
@@ -205,15 +209,24 @@ class ModelRegistry:
                 )
                 model, source = await self.require(MOCK_MODEL_ID, user), "mock"
 
-        fallback: ResolvedModel | None = None
-        candidates = [config.fallback_model_id if config else None]
-        candidates.append(self._settings.llm_fallback_model_id)
+        # Ordered, deduplicated, never the selected model; unavailable ones are skipped.
+        # mock-echo is held back: the orchestrator always appends it as the last resort,
+        # so a user or global fallback of mock-echo cannot cut the chain short.
+        candidates = [
+            config.fallback_model_id if config else None,
+            *self._settings.fallback_chain,
+            self._settings.llm_fallback_model_id,
+        ]
+        fallbacks: list[ResolvedModel] = []
+        seen = {model.id}
         for candidate in candidates:
-            if candidate and candidate != model.id:
-                fallback = await self._try(candidate, user)
-                if fallback is not None:
-                    break
-        return Selection(model=model, source=source, fallback=fallback)
+            if not candidate or candidate in seen or candidate == MOCK_MODEL_ID:
+                continue
+            seen.add(candidate)
+            resolved = await self._try(candidate, user)
+            if resolved is not None:
+                fallbacks.append(resolved)
+        return Selection(model=model, source=source, fallbacks=tuple(fallbacks))
 
     # --- user configuration -------------------------------------------------------
     async def _set(self, user: AuthenticatedUser, model_id: str, *, field: str) -> None:

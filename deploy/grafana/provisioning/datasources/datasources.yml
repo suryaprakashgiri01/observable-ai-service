@@ -11,3 +11,10 @@ datasources:
     type: jaeger
     access: proxy
     url: http://jaeger:16686
+  - name: Alertmanager
+    uid: alertmanager
+    type: alertmanager
+    access: proxy
+    url: http://alertmanager:9093
+    jsonData:
+      implementation: prometheus

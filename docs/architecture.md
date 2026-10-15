@@ -17,6 +17,21 @@ POST /ask
      └─ span tool.<name>         create_ticket → Postgres  |  generate_report → mock_orders.json
 ```
 
+## Alerts and async jobs
+
+```
+Prometheus rules ──▶ Alertmanager ──▶ POST /alerts/webhook ──▶ notifications (Postgres)
+                                                  └─ KAFKA_ENABLED ─▶ ai-service.notifications
+POST /ask (Prefer: respond-async) ──▶ ask_jobs (queued) ──▶ 202 {job_id}
+    └─ background task, span ask.job (same trace, session, Langfuse trace)
+         └─ orchestrator status hook: running · retrying · fallback · completed · failed
+              ├─ ask_jobs.events (GET /ask/jobs/{id})
+              └─ KAFKA_ENABLED ─▶ ai-service.ask-status
+```
+
+Postgres is the source of truth for both. Kafka is an optional copy, so the API never depends
+on the broker, and a publish failure is logged and counted, never raised.
+
 ## Modules
 
 | Path | Responsibility |
@@ -29,7 +44,12 @@ POST /ask
 | `app/llm/` | provider-neutral types, catalog, DB-backed registry, orchestrator, Langfuse recorder |
 | `app/llm/providers/` | OpenAI (+ BYOM), Anthropic, Gemini, mock — all raw `httpx`, one shared client |
 | `app/services/` | agent (JSON plan → tool), tools |
-| `scripts/` | idempotent seeds for the catalog and users |
+| `app/integrations/events.py` | `EventPublisher`: no-op, in-memory (tests) or Kafka (flag) |
+| `app/services/jobs.py`, `app/llm/status.py` | async job runner and the status hook |
+| `app/api/routes/alerts.py` | Alertmanager webhook, notifications |
+| `scripts/` | seeds, traffic generator, cleanup, demo walkthrough |
+| `deploy/grafana/build_dashboard.py` | the dashboard as code (fixed panel ids for alert links) |
+| `deploy/prometheus-alerts.yml`, `deploy/alertmanager.yml` | alert rules and routing |
 | `deploy/` | Prometheus scrape config, Grafana datasources + dashboard |
 
 ## Why these choices

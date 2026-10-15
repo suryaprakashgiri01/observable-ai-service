@@ -64,7 +64,7 @@ def orchestrator(provider: ScriptedProvider) -> LLMOrchestrator:
 
 async def test_success_on_first_attempt(spans) -> None:
     provider = ScriptedProvider()
-    done = await orchestrator(provider).complete(Selection(FAKE, "header", None), MESSAGES)
+    done = await orchestrator(provider).complete(Selection(FAKE, "header"), MESSAGES)
     assert done.model.id == "fake-standard" and done.attempts == 1 and not done.fallback_used
     llm_spans = [s for s in spans.get_finished_spans() if s.name == "llm.call"]
     assert len(llm_spans) == 1
@@ -75,7 +75,7 @@ async def test_success_on_first_attempt(spans) -> None:
 async def test_transient_error_is_retried_then_succeeds() -> None:
     provider = ScriptedProvider(TransientLLMError("slow", reason="timeout"))
     before = metric("llm_retries_total", model="fake-standard")
-    done = await orchestrator(provider).complete(Selection(FAKE, "header", None), MESSAGES)
+    done = await orchestrator(provider).complete(Selection(FAKE, "header"), MESSAGES)
     assert done.model.id == "fake-standard" and done.attempts == 2
     assert metric("llm_retries_total", model="fake-standard") == before + 1
 
@@ -84,7 +84,7 @@ async def test_persistent_timeouts_exhaust_retries_then_fall_back(spans) -> None
     provider = ScriptedProvider(*[TransientLLMError("t", reason="timeout") for _ in range(3)])
     labels = {"from_model": "fake-standard", "to_model": MOCK_MODEL_ID, "reason": "timeout"}
     before = metric("llm_fallbacks_total", **labels)
-    done = await orchestrator(provider).complete(Selection(FAKE, "header", MOCK), MESSAGES)
+    done = await orchestrator(provider).complete(Selection(FAKE, "header", (MOCK,)), MESSAGES)
 
     assert provider.calls == 3
     assert done.fallback_used and done.model.id == MOCK_MODEL_ID
@@ -98,13 +98,13 @@ async def test_persistent_timeouts_exhaust_retries_then_fall_back(spans) -> None
 
 async def test_permanent_error_skips_retries() -> None:
     provider = ScriptedProvider(PermanentLLMError("bad key", reason="auth"))
-    done = await orchestrator(provider).complete(Selection(FAKE, "header", None), MESSAGES)
+    done = await orchestrator(provider).complete(Selection(FAKE, "header"), MESSAGES)
     assert provider.calls == 1 and done.fallback_used and done.model.id == MOCK_MODEL_ID
 
 
 async def test_mock_is_appended_as_last_resort_when_no_fallback() -> None:
     provider = ScriptedProvider(PermanentLLMError("x", reason="bad_request"))
-    done = await orchestrator(provider).complete(Selection(FAKE, "body", None), MESSAGES)
+    done = await orchestrator(provider).complete(Selection(FAKE, "body"), MESSAGES)
     assert done.chain == ["fake-standard", MOCK_MODEL_ID]
 
 
@@ -112,18 +112,64 @@ async def test_injected_faults_hit_only_the_selected_model() -> None:
     provider = ScriptedProvider()
     orch = orchestrator(provider)
     timeout = await orch.complete(
-        Selection(FAKE, "header", MOCK), MESSAGES, fault=FAULT_LLM_TIMEOUT
+        Selection(FAKE, "header", (MOCK,)), MESSAGES, fault=FAULT_LLM_TIMEOUT
     )
     assert timeout.fallback_used and timeout.attempts == 4 and provider.calls == 0
-    error = await orch.complete(Selection(FAKE, "header", MOCK), MESSAGES, fault=FAULT_LLM_ERROR)
+    error = await orch.complete(Selection(FAKE, "header", (MOCK,)), MESSAGES, fault=FAULT_LLM_ERROR)
     assert error.fallback_used and error.attempts == 2
 
 
 async def test_fault_on_selected_mock_still_degrades_to_last_resort_mock() -> None:
     done = await orchestrator(ScriptedProvider()).complete(
-        Selection(MOCK, "mock", None), MESSAGES, fault=FAULT_LLM_TIMEOUT
+        Selection(MOCK, "mock"), MESSAGES, fault=FAULT_LLM_TIMEOUT
     )
     assert done.fallback_used and done.chain == [MOCK_MODEL_ID, MOCK_MODEL_ID]
+
+
+async def test_fault_count_walks_the_chain_until_an_unfaulted_model(spans) -> None:
+    std = ResolvedModel(spec=next(s for s in CATALOG if s.id == "mock-standard"))
+    eco = ResolvedModel(spec=next(s for s in CATALOG if s.id == "mock-economy"))
+    premium = ResolvedModel(spec=next(s for s in CATALOG if s.id == "mock-premium"))
+    done = await orchestrator(ScriptedProvider()).complete(
+        Selection(premium, "header", (std, eco)), MESSAGES, fault=FAULT_LLM_TIMEOUT, fault_count=2
+    )
+    assert done.chain == ["mock-premium", "mock-standard", "mock-economy"]
+    assert done.model.id == "mock-economy" and done.attempts == 7 and done.fallback_used
+    calls = [
+        s.attributes["llm.model_id"] for s in spans.get_finished_spans() if s.name == "llm.call"
+    ]
+    assert calls == ["mock-premium"] * 3 + ["mock-standard"] * 3 + ["mock-economy"]
+
+
+async def test_fault_never_hits_the_last_resort() -> None:
+    done = await orchestrator(ScriptedProvider()).complete(
+        Selection(FAKE, "header", (MOCK,)), MESSAGES, fault=FAULT_LLM_TIMEOUT, fault_count=5
+    )
+    assert done.model.id == MOCK_MODEL_ID and done.fallback_used
+
+
+async def test_registry_builds_the_chain_in_order(session: AsyncSession) -> None:
+    settings = make_settings(llm_fallback_chain="mock-standard,mock-economy,gpt-4.1")
+    registry = ModelRegistry(session, settings)
+    user = await _user(session)
+    picked = await registry.resolve(user, header_id="mock-premium", body_id=None)
+    # gpt-4.1 has no key here, so it is skipped; mock-echo is appended by the orchestrator.
+    assert [m.id for m in picked.fallbacks] == ["mock-standard", "mock-economy"]
+    await registry.set_fallback(user, "mock-economy")
+    picked = await registry.resolve(user, header_id="mock-premium", body_id=None)
+    assert [m.id for m in picked.fallbacks] == ["mock-economy", "mock-standard"]
+    await registry.set_fallback(user, MOCK_MODEL_ID)
+    picked = await registry.resolve(user, header_id="mock-premium", body_id=None)
+    assert [m.id for m in picked.fallbacks] == ["mock-standard", "mock-economy"]
+
+
+async def test_mock_tiers_have_simulated_latency() -> None:
+    import time
+
+    premium = ResolvedModel(spec=next(s for s in CATALOG if s.id == "mock-premium"))
+    started = time.perf_counter()
+    await MockProvider().complete(premium, MESSAGES, max_tokens=1, temperature=0, timeout_seconds=1)
+    assert time.perf_counter() - started >= 0.25
 
 
 # --- provider adapters (wire format and error mapping) ------------------------------
@@ -300,10 +346,10 @@ async def test_fallback_prefers_user_choice_and_never_equals_selected(
     user = await _user(session)
     picked = await registry.resolve(user, header_id="gemini-2.5-pro", body_id=None)
     assert picked.fallback is not None and picked.fallback.id == "gemini-2.5-flash-lite"
-    await registry.set_fallback(user, MOCK_MODEL_ID)
+    await registry.set_fallback(user, "mock-standard")
     picked = await registry.resolve(user, header_id="gemini-2.5-pro", body_id=None)
-    assert picked.fallback is not None and picked.fallback.id == MOCK_MODEL_ID
-    picked = await registry.resolve(user, header_id=MOCK_MODEL_ID, body_id=None)
+    assert picked.fallback is not None and picked.fallback.id == "mock-standard"
+    picked = await registry.resolve(user, header_id="mock-standard", body_id=None)
     assert picked.fallback is not None and picked.fallback.id == "gemini-2.5-flash-lite"
 
 
@@ -338,6 +384,7 @@ async def test_list_filters_by_tier(session: AsyncSession) -> None:
         Provider.OPENAI,
         Provider.ANTHROPIC,
         Provider.GOOGLE,
+        Provider.MOCK,
     }
 
 

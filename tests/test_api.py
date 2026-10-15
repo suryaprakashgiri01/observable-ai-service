@@ -171,7 +171,7 @@ def test_fault_header_is_ignored_when_injection_is_disabled(settings, span_expor
 
 def test_models_lists_catalog_by_tier_with_flags(client: TestClient) -> None:
     body = client.get("/models", headers=auth()).json()
-    assert body["total"] == 10
+    assert body["total"] == 13
     assert body["default_model_id"] == "mock-echo"
     by_id = {m["id"]: m for m in body["items"]}
     assert by_id["claude-haiku-5-5"] == {
@@ -186,7 +186,7 @@ def test_models_lists_catalog_by_tier_with_flags(client: TestClient) -> None:
     }
     assert by_id["mock-echo"]["available"] is True
     premium = client.get("/models", params={"tier": "premium"}, headers=auth()).json()
-    assert {m["tier"] for m in premium["items"]} == {"premium"} and premium["total"] == 3
+    assert {m["tier"] for m in premium["items"]} == {"premium"} and premium["total"] == 4
 
 
 def test_default_model_is_per_user(client: TestClient) -> None:
@@ -235,3 +235,39 @@ def test_custom_model_id_is_validated(client: TestClient) -> None:
     assert response.status_code == 422
     locs = {tuple(e["loc"]) for e in response.json()["error"]["details"]}
     assert ("body", "id") in locs and ("body", "base_url") in locs
+
+
+def test_ticket_ids_are_uuids(client: TestClient) -> None:
+    import uuid
+
+    body = client.post("/ask", json=TICKET_Q, headers=auth()).json()
+    ticket_id = body["action"]["ticket"]["id"]
+    assert uuid.UUID(ticket_id).version == 4
+    assert ticket_id in body["answer"]
+    missing = client.get(f"/tickets/{uuid.uuid4()}", headers=auth())
+    assert missing.status_code == 404 and missing.json()["error"]["code"] == "TICKET_NOT_FOUND"
+    assert client.get("/tickets/12345", headers=auth()).status_code == 422
+
+
+def test_multi_model_timeout_demo(settings, span_exporter) -> None:
+    from app.core.app_factory import create_app
+    from tests.conftest import memory_database, prepare
+
+    db = memory_database()
+    chained = settings.model_copy(update={"llm_fallback_chain": "mock-standard,mock-economy"})
+    with TestClient(create_app(chained, db)) as c:
+        c.portal.call(prepare, db)
+        r = c.post(
+            "/ask",
+            json=REPORT_Q,
+            headers=auth(
+                **{
+                    "X-Model-Id": "mock-premium",
+                    "X-Debug-Fault": "llm_timeout",
+                    "X-Debug-Fault-Count": "2",
+                }
+            ),
+        )
+    model = r.json()["model"]
+    assert model["chain"] == ["mock-premium", "mock-standard", "mock-economy"]
+    assert model["used"] == "mock-economy" and model["attempts"] == 7

@@ -36,5 +36,5 @@ async def create_ticket(
         trace_id=current_trace_id(),
     )
     TICKETS_CREATED.labels(priority=normalised).inc()
-    logger.info("ticket created", ticket_id=ticket.id, priority=normalised)
+    logger.info("ticket created", ticket_id=str(ticket.id), priority=normalised)
     return TicketOut.model_validate(ticket)

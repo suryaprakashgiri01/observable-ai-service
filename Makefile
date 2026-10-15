@@ -45,8 +45,8 @@ define require_compose
 	}
 endef
 
-.PHONY: help runtime psql install dev up up-infra down logs lint format typecheck test test-cov test-ci check \
-        migrate migration downgrade seed docker-build clean demo-success demo-invalid demo-fault
+.PHONY: help runtime psql install dev up up-infra up-kafka down logs lint format typecheck test test-cov test-ci check \
+        migrate migration downgrade seed traffic demo cleanup dashboard docker-build clean demo-success demo-invalid demo-fault
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -69,7 +69,7 @@ up: ## Start the full stack: app, postgres, jaeger, prometheus, grafana
 
 up-infra: ## Start only backing services (run the app with `make dev`)
 	$(require_compose)
-	$(COMPOSE) up -d postgres jaeger prometheus grafana
+	$(COMPOSE) up -d postgres jaeger prometheus alertmanager grafana
 	@$(MAKE) --no-print-directory _wait-postgres
 
 _wait-postgres:
@@ -84,9 +84,15 @@ _wait-postgres:
 	$(COMPOSE) logs --tail=20 postgres >&2 || true; \
 	exit 1
 
-down: ## Stop the stack
+down: ## Stop the stack (including the optional Kafka profile)
 	$(require_compose)
-	$(COMPOSE) down
+	$(COMPOSE) --profile kafka down
+
+up-kafka: ## Start the optional Kafka broker + Kafka UI (:8080); set KAFKA_ENABLED=true in .env
+	$(require_compose)
+	$(COMPOSE) --profile kafka up -d kafka kafka-ui
+	@echo "Kafka on localhost:9094 (kafka:9092 in compose), UI on http://localhost:8080"
+	@echo "Set KAFKA_ENABLED=true in .env, then: $(COMPOSE) up -d --force-recreate app"
 
 logs: ## Tail stack logs (one service: make logs s=app)
 	$(require_compose)
@@ -131,6 +137,18 @@ downgrade: ## Roll back one migration
 seed: ## Seed the model catalog and the initial users (idempotent)
 	$(RUN) python -m scripts.seed_models
 	$(RUN) python -m scripts.seed_users
+
+traffic: ## Generate traffic that moves every dashboard metric (ARGS="--rounds 5 --outage")
+	$(RUN) python -m scripts.generate_traffic $(ARGS)
+
+demo: ## API walkthrough; dry run by default (ARGS="--apply --pause --session take-1")
+	$(RUN) python -m scripts.demo_walkthrough $(ARGS)
+
+cleanup: ## Reset DB/metrics/traces/alerts/Kafka/Langfuse; dry run by default (ARGS="--apply --yes")
+	$(RUN) python -m scripts.cleanup $(ARGS)
+
+dashboard: ## Regenerate the Grafana dashboard JSON from deploy/grafana/build_dashboard.py
+	$(RUN) python deploy/grafana/build_dashboard.py
 
 docker-build: ## Build the container image
 	@test -n "$(CONTAINER)" || { echo "No container runtime found (docker/podman)."; exit 1; }

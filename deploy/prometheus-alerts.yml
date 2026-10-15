@@ -1,0 +1,105 @@
+# Alert rules. Prometheus evaluates them every 5s; Alertmanager sends firing and
+# resolved alerts to POST /alerts/webhook, which stores them as in-app notifications.
+# Only 5xx and 401/403 alert among HTTP errors: other 4xx (400, 404, 409, 422) are the
+# caller's problem and stay logged and counted, not paged.
+#
+# `dashboard` annotations open the matching Grafana panel (ids are fixed in
+# deploy/grafana/build_dashboard.py).
+groups:
+  - name: observable-ai-service
+    rules:
+      - alert: Http5xxErrors
+        expr: |
+          sum by (method, route, status) (
+            increase(http_requests_total{job="observable-ai-service", status=~"5.."}[1m])
+          ) > 0
+        for: 10s
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.status }} on {{ $labels.method }} {{ $labels.route }}"
+          description: >-
+            {{ $value | printf "%.0f" }} response(s) with status {{ $labels.status }} on
+            {{ $labels.method }} {{ $labels.route }} in the last minute. Search the logs for
+            level=error and open the request's trace from its trace_id.
+          dashboard: "http://localhost:3000/d/observable-ai-service/observable-ai-service?viewPanel=20"
+
+      - alert: Http4xxAuthErrors
+        expr: |
+          sum by (method, route, status) (
+            increase(http_requests_total{job="observable-ai-service", status=~"401|403"}[1m])
+          ) > 0
+        for: 10s
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.status }} on {{ $labels.method }} {{ $labels.route }}"
+          description: >-
+            {{ $value | printf "%.0f" }} request(s) rejected with {{ $labels.status }} on
+            {{ $labels.method }} {{ $labels.route }} in the last minute (missing, unknown,
+            revoked key, or forbidden). See auth_failures_total by reason.
+          dashboard: "http://localhost:3000/d/observable-ai-service/observable-ai-service?viewPanel=21"
+
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{job="observable-ai-service", status=~"5.."}[5m]))
+            / clamp_min(sum(rate(http_requests_total{job="observable-ai-service"}[5m])), 1e-9)
+          ) > 0.05
+          and sum(increase(http_requests_total{job="observable-ai-service"}[5m])) > 10
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "5xx error rate above 5%"
+          description: "{{ $value | humanizePercentage }} of requests failed with 5xx over 5 minutes."
+          dashboard: "http://localhost:3000/d/observable-ai-service/observable-ai-service?viewPanel=2"
+
+      - alert: LlmFallbacks
+        expr: |
+          sum by (from_model, to_model, reason) (
+            increase(llm_fallbacks_total{job="observable-ai-service"}[2m])
+          ) > 0
+        for: 0s
+        labels:
+          severity: warning
+        annotations:
+          summary: "LLM fallback {{ $labels.from_model }} → {{ $labels.to_model }} ({{ $labels.reason }})"
+          description: >-
+            {{ $value | printf "%.0f" }} fallback(s) in the last 2 minutes: {{ $labels.from_model }}
+            failed with {{ $labels.reason }} after its retries. Answers still went out, but slower
+            and from a different model.
+          dashboard: "http://localhost:3000/d/observable-ai-service/observable-ai-service?viewPanel=30"
+
+      - alert: AskLatencyHigh
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(http_request_duration_seconds_bucket{job="observable-ai-service", route="/ask"}[5m]))
+          ) > 3
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "/ask p95 latency above 3s"
+          description: "p95 is {{ $value | humanizeDuration }}. Check LLM retries and fallbacks."
+          dashboard: "http://localhost:3000/d/observable-ai-service/observable-ai-service?viewPanel=6"
+
+      - alert: AskJobsFailing
+        expr: increase(ask_jobs_total{job="observable-ai-service", status="failed"}[5m]) > 0
+        for: 0s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Async /ask jobs failing"
+          description: "{{ $value | printf \"%.0f\" }} job(s) ended failed in the last 5 minutes. GET /ask/jobs/{id} shows the error."
+          dashboard: "http://localhost:3000/d/observable-ai-service/observable-ai-service?viewPanel=40"
+
+      - alert: ServiceDown
+        expr: up{job="observable-ai-service"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "observable-ai-service is not being scraped"
+          description: "Prometheus cannot reach /metrics. The app is down or unreachable (notifications may also be down: check Alertmanager)."
+          dashboard: "http://localhost:3000/d/observable-ai-service/observable-ai-service?viewPanel=50"

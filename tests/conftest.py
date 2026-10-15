@@ -39,6 +39,8 @@ def make_settings(**overrides: Any) -> Settings:
         "llm_max_attempts": 3,
         "llm_default_model_id": "mock-echo",
         "llm_fallback_model_id": "mock-echo",
+        # Empty by default so single-hop tests stay exact; chain tests set it.
+        "llm_fallback_chain": "",
         "app_encryption_key": Fernet.generate_key().decode(),
         "openai_api_key": "",
         "anthropic_api_key": "",
@@ -72,6 +74,9 @@ def memory_database() -> Database:
         "sqlite+aiosqlite://",
         poolclass=StaticPool,
         connect_args={"check_same_thread": False},
+        # One shared connection: never roll it back on return, or one session's
+        # cleanup would undo another's (the async job runs beside the request).
+        pool_reset_on_return=None,
     )
     return Database(engine)
 

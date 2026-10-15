@@ -7,7 +7,7 @@
   ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "refresh": "5s",
   "time": {
     "from": "now-15m",
@@ -15,6 +15,7 @@
   },
   "panels": [
     {
+      "id": 100,
       "type": "row",
       "title": "Golden signals",
       "collapsed": false,
@@ -24,10 +25,10 @@
         "h": 1,
         "x": 0,
         "y": 0
-      },
-      "id": 1
+      }
     },
     {
+      "id": 1,
       "type": "stat",
       "title": "Requests / s",
       "description": "",
@@ -37,7 +38,16 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "reqps"
+          "unit": "reqps",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
         },
         "overrides": []
       },
@@ -48,7 +58,8 @@
           ]
         },
         "colorMode": "value",
-        "graphMode": "area"
+        "graphMode": "area",
+        "textMode": "value"
       },
       "targets": [
         {
@@ -56,21 +67,22 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(http_requests_total[1m]))",
+          "expr": "sum(rate(http_requests_total{job=\"observable-ai-service\"}[$__rate_interval]))",
+          "legendFormat": "",
           "refId": "A"
         }
       ],
       "gridPos": {
-        "w": 6,
+        "w": 4,
         "h": 4,
         "x": 0,
         "y": 1
-      },
-      "id": 2
+      }
     },
     {
+      "id": 2,
       "type": "stat",
-      "title": "Error rate (5xx)",
+      "title": "Error rate (5xx, 5m)",
       "description": "",
       "datasource": {
         "type": "prometheus",
@@ -78,7 +90,24 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "percentunit"
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.01
+              },
+              {
+                "color": "red",
+                "value": 0.05
+              }
+            ]
+          }
         },
         "overrides": []
       },
@@ -89,7 +118,8 @@
           ]
         },
         "colorMode": "value",
-        "graphMode": "area"
+        "graphMode": "area",
+        "textMode": "value"
       },
       "targets": [
         {
@@ -97,19 +127,132 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(http_requests_total{status=~\"5..\"}[1m])) / clamp_min(sum(rate(http_requests_total[1m])),1e-9)",
+          "expr": "sum(rate(http_requests_total{job=\"observable-ai-service\",status=~\"5..\"}[5m])) / clamp_min(sum(rate(http_requests_total{job=\"observable-ai-service\"}[5m])), 1e-9)",
+          "legendFormat": "",
           "refId": "A"
         }
       ],
       "gridPos": {
-        "w": 6,
+        "w": 4,
         "h": 4,
-        "x": 6,
+        "x": 4,
         "y": 1
-      },
-      "id": 3
+      }
     },
     {
+      "id": 3,
+      "type": "stat",
+      "title": "5xx responses (range)",
+      "description": "Count over the selected time range. Alerts: Http5xxErrors.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(increase(http_requests_total{job=\"observable-ai-service\",status=~\"5..\"}[$__range]))",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "w": 4,
+        "h": 4,
+        "x": 8,
+        "y": 1
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "401 / 403 (range)",
+      "description": "Auth rejections over the range. Alerts: Http4xxAuthErrors.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(increase(http_requests_total{job=\"observable-ai-service\",status=~\"401|403\"}[$__range]))",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "w": 4,
+        "h": 4,
+        "x": 12,
+        "y": 1
+      }
+    },
+    {
+      "id": 5,
       "type": "stat",
       "title": "/ask p95 latency",
       "description": "",
@@ -119,7 +262,24 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "s"
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 3
+              }
+            ]
+          }
         },
         "overrides": []
       },
@@ -130,7 +290,8 @@
           ]
         },
         "colorMode": "value",
-        "graphMode": "area"
+        "graphMode": "area",
+        "textMode": "value"
       },
       "targets": [
         {
@@ -138,19 +299,20 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{route=\"/ask\"}[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"observable-ai-service\",route=\"/ask\"}[5m])))",
+          "legendFormat": "",
           "refId": "A"
         }
       ],
       "gridPos": {
-        "w": 6,
+        "w": 4,
         "h": 4,
-        "x": 12,
+        "x": 16,
         "y": 1
-      },
-      "id": 4
+      }
     },
     {
+      "id": 7,
       "type": "stat",
       "title": "In-flight requests",
       "description": "",
@@ -160,7 +322,16 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
         },
         "overrides": []
       },
@@ -171,7 +342,8 @@
           ]
         },
         "colorMode": "value",
-        "graphMode": "area"
+        "graphMode": "area",
+        "textMode": "value"
       },
       "targets": [
         {
@@ -179,19 +351,20 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(http_requests_in_progress)",
+          "expr": "sum(http_requests_in_progress{job=\"observable-ai-service\"})",
+          "legendFormat": "",
           "refId": "A"
         }
       ],
       "gridPos": {
-        "w": 6,
+        "w": 4,
         "h": 4,
-        "x": 18,
+        "x": 20,
         "y": 1
-      },
-      "id": 5
+      }
     },
     {
+      "id": 8,
       "type": "timeseries",
       "title": "Request rate by route and status",
       "description": "",
@@ -203,10 +376,12 @@
         "defaults": {
           "unit": "reqps",
           "custom": {
+            "drawStyle": "line",
             "fillOpacity": 0,
             "stacking": {
               "mode": "none"
-            }
+            },
+            "lineWidth": 1
           }
         },
         "overrides": []
@@ -226,7 +401,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (route, status) (rate(http_requests_total[1m]))",
+          "expr": "sum by (route, status) (rate(http_requests_total{job=\"observable-ai-service\"}[$__rate_interval]))",
           "legendFormat": "{{route}} {{status}}",
           "refId": "A"
         }
@@ -236,10 +411,10 @@
         "h": 8,
         "x": 0,
         "y": 5
-      },
-      "id": 6
+      }
     },
     {
+      "id": 6,
       "type": "timeseries",
       "title": "Latency by route (p50 / p95 / p99)",
       "description": "",
@@ -251,10 +426,12 @@
         "defaults": {
           "unit": "s",
           "custom": {
+            "drawStyle": "line",
             "fillOpacity": 0,
             "stacking": {
               "mode": "none"
-            }
+            },
+            "lineWidth": 1
           }
         },
         "overrides": []
@@ -274,7 +451,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.5, sum by (le, route) (rate(http_request_duration_seconds_bucket[5m])))",
+          "expr": "histogram_quantile(0.5, sum by (le, route) (rate(http_request_duration_seconds_bucket{job=\"observable-ai-service\"}[5m])))",
           "legendFormat": "p50 {{route}}",
           "refId": "A"
         },
@@ -283,7 +460,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (le, route) (rate(http_request_duration_seconds_bucket[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le, route) (rate(http_request_duration_seconds_bucket{job=\"observable-ai-service\"}[5m])))",
           "legendFormat": "p95 {{route}}",
           "refId": "B"
         },
@@ -292,7 +469,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.99, sum by (le, route) (rate(http_request_duration_seconds_bucket[5m])))",
+          "expr": "histogram_quantile(0.99, sum by (le, route) (rate(http_request_duration_seconds_bucket{job=\"observable-ai-service\"}[5m])))",
           "legendFormat": "p99 {{route}}",
           "refId": "C"
         }
@@ -302,25 +479,27 @@
         "h": 8,
         "x": 12,
         "y": 5
-      },
-      "id": 7
+      }
     },
     {
+      "id": 9,
       "type": "timeseries",
-      "title": "Errors by code",
-      "description": "Every error envelope rendered, by stable error code.",
+      "title": "Responses by status class",
+      "description": "2xx / 4xx / 5xx counts per interval.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "reqps",
+          "unit": "short",
           "custom": {
-            "fillOpacity": 15,
+            "drawStyle": "bars",
+            "fillOpacity": 60,
             "stacking": {
               "mode": "normal"
-            }
+            },
+            "lineWidth": 1
           }
         },
         "overrides": []
@@ -340,8 +519,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (code) (rate(ask_errors_total[1m]))",
-          "legendFormat": "{{code}}",
+          "expr": "sum by (class) (label_replace(increase(http_requests_total{job=\"observable-ai-service\"}[$__rate_interval]), \"class\", \"${1}xx\", \"status\", \"(.)..\"))",
+          "legendFormat": "{{class}}",
           "refId": "A"
         }
       ],
@@ -350,10 +529,110 @@
         "h": 8,
         "x": 0,
         "y": 13
-      },
-      "id": 8
+      }
     },
     {
+      "id": 20,
+      "type": "timeseries",
+      "title": "5xx by route and status",
+      "description": "Every 5xx, including the first one (series are pre-created at 0).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "stacking": {
+              "mode": "normal"
+            },
+            "lineWidth": 1
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (method, route, status) (increase(http_requests_total{job=\"observable-ai-service\",status=~\"5..\"}[$__rate_interval]))",
+          "legendFormat": "{{status}} {{method}} {{route}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "w": 12,
+        "h": 8,
+        "x": 12,
+        "y": 13
+      }
+    },
+    {
+      "id": 21,
+      "type": "timeseries",
+      "title": "401 / 403 by route",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "stacking": {
+              "mode": "normal"
+            },
+            "lineWidth": 1
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (method, route, status) (increase(http_requests_total{job=\"observable-ai-service\",status=~\"401|403\"}[$__rate_interval]))",
+          "legendFormat": "{{status}} {{method}} {{route}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "w": 12,
+        "h": 8,
+        "x": 0,
+        "y": 21
+      }
+    },
+    {
+      "id": 11,
       "type": "timeseries",
       "title": "Auth failures by reason",
       "description": "",
@@ -363,12 +642,14 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "reqps",
+          "unit": "short",
           "custom": {
-            "fillOpacity": 15,
+            "drawStyle": "bars",
+            "fillOpacity": 60,
             "stacking": {
               "mode": "normal"
-            }
+            },
+            "lineWidth": 1
           }
         },
         "overrides": []
@@ -388,7 +669,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (reason) (rate(auth_failures_total[1m]))",
+          "expr": "sum by (reason) (increase(auth_failures_total{job=\"observable-ai-service\"}[$__rate_interval]))",
           "legendFormat": "{{reason}}",
           "refId": "A"
         }
@@ -397,11 +678,234 @@
         "w": 12,
         "h": 8,
         "x": 12,
-        "y": 13
-      },
-      "id": 9
+        "y": 21
+      }
     },
     {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Errors by code",
+      "description": "Every error envelope rendered, by stable error code.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "stacking": {
+              "mode": "normal"
+            },
+            "lineWidth": 1
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (code) (increase(ask_errors_total{job=\"observable-ai-service\"}[$__rate_interval]))",
+          "legendFormat": "{{code}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "w": 24,
+        "h": 8,
+        "x": 0,
+        "y": 29
+      }
+    },
+    {
+      "id": 101,
+      "type": "row",
+      "title": "Alerts",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "w": 24,
+        "h": 1,
+        "x": 0,
+        "y": 37
+      }
+    },
+    {
+      "id": 60,
+      "type": "table",
+      "title": "Firing alerts",
+      "description": "Alerts Prometheus is firing now. They also arrive in GET /notifications.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false
+        }
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "Value": true,
+              "job": true,
+              "instance": true,
+              "alertstate": true
+            }
+          }
+        }
+      ],
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "ALERTS{alertstate=\"firing\",job=\"observable-ai-service\"} or ALERTS{alertstate=\"firing\"}",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "gridPos": {
+        "w": 12,
+        "h": 8,
+        "x": 0,
+        "y": 38
+      }
+    },
+    {
+      "id": 61,
+      "type": "timeseries",
+      "title": "Alert notifications received (webhook)",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "stacking": {
+              "mode": "normal"
+            },
+            "lineWidth": 1
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (alertname, status) (increase(alerts_received_total{job=\"observable-ai-service\"}[$__rate_interval]))",
+          "legendFormat": "{{alertname}} {{status}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "w": 12,
+        "h": 8,
+        "x": 12,
+        "y": 38
+      }
+    },
+    {
+      "id": 62,
+      "type": "stat",
+      "title": "Unread notifications",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(notifications_unread{job=\"observable-ai-service\"})",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "w": 4,
+        "h": 4,
+        "x": 0,
+        "y": 46
+      }
+    },
+    {
+      "id": 102,
       "type": "row",
       "title": "LLM orchestrator",
       "collapsed": false,
@@ -410,11 +914,11 @@
         "w": 24,
         "h": 1,
         "x": 0,
-        "y": 21
-      },
-      "id": 10
+        "y": 50
+      }
     },
     {
+      "id": 31,
       "type": "timeseries",
       "title": "LLM attempts by model and outcome",
       "description": "",
@@ -424,12 +928,14 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "reqps",
+          "unit": "short",
           "custom": {
-            "fillOpacity": 15,
+            "drawStyle": "bars",
+            "fillOpacity": 60,
             "stacking": {
               "mode": "normal"
-            }
+            },
+            "lineWidth": 1
           }
         },
         "overrides": []
@@ -449,7 +955,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (model, outcome) (rate(llm_requests_total[1m]))",
+          "expr": "sum by (model, outcome) (increase(llm_requests_total{job=\"observable-ai-service\"}[$__rate_interval]))",
           "legendFormat": "{{model}} {{outcome}}",
           "refId": "A"
         }
@@ -458,11 +964,11 @@
         "w": 12,
         "h": 8,
         "x": 0,
-        "y": 22
-      },
-      "id": 11
+        "y": 51
+      }
     },
     {
+      "id": 32,
       "type": "timeseries",
       "title": "LLM latency p95 by model",
       "description": "",
@@ -474,10 +980,12 @@
         "defaults": {
           "unit": "s",
           "custom": {
+            "drawStyle": "line",
             "fillOpacity": 0,
             "stacking": {
               "mode": "none"
-            }
+            },
+            "lineWidth": 1
           }
         },
         "overrides": []
@@ -497,7 +1005,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (le, model) (rate(llm_request_duration_seconds_bucket[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le, model) (rate(llm_request_duration_seconds_bucket{job=\"observable-ai-service\"}[5m])))",
           "legendFormat": "{{model}}",
           "refId": "A"
         }
@@ -506,11 +1014,11 @@
         "w": 12,
         "h": 8,
         "x": 12,
-        "y": 22
-      },
-      "id": 12
+        "y": 51
+      }
     },
     {
+      "id": 30,
       "type": "timeseries",
       "title": "Retries and fallbacks",
       "description": "Retries climbing before fallbacks is the signature of a degrading provider.",
@@ -520,12 +1028,14 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "reqps",
+          "unit": "short",
           "custom": {
-            "fillOpacity": 0,
+            "drawStyle": "bars",
+            "fillOpacity": 60,
             "stacking": {
-              "mode": "none"
-            }
+              "mode": "normal"
+            },
+            "lineWidth": 1
           }
         },
         "overrides": []
@@ -545,7 +1055,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (model) (rate(llm_retries_total[1m]))",
+          "expr": "sum by (model) (increase(llm_retries_total{job=\"observable-ai-service\"}[$__rate_interval]))",
           "legendFormat": "retry {{model}}",
           "refId": "A"
         },
@@ -554,8 +1064,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (from_model, to_model, reason) (rate(llm_fallbacks_total[1m]))",
-          "legendFormat": "fallback {{from_model}} -> {{to_model}} ({{reason}})",
+          "expr": "sum by (from_model, to_model, reason) (increase(llm_fallbacks_total{job=\"observable-ai-service\"}[$__rate_interval]))",
+          "legendFormat": "fallback {{from_model}} \u2192 {{to_model}} ({{reason}})",
           "refId": "B"
         }
       ],
@@ -563,11 +1073,11 @@
         "w": 12,
         "h": 8,
         "x": 0,
-        "y": 30
-      },
-      "id": 13
+        "y": 59
+      }
     },
     {
+      "id": 33,
       "type": "timeseries",
       "title": "Tokens by model",
       "description": "",
@@ -579,10 +1089,12 @@
         "defaults": {
           "unit": "short",
           "custom": {
+            "drawStyle": "line",
             "fillOpacity": 15,
             "stacking": {
               "mode": "normal"
-            }
+            },
+            "lineWidth": 1
           }
         },
         "overrides": []
@@ -602,7 +1114,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (model, type) (rate(llm_tokens_total[5m]))",
+          "expr": "sum by (model, type) (increase(llm_tokens_total{job=\"observable-ai-service\"}[$__rate_interval]))",
           "legendFormat": "{{model}} {{type}}",
           "refId": "A"
         }
@@ -611,26 +1123,28 @@
         "w": 12,
         "h": 8,
         "x": 12,
-        "y": 30
-      },
-      "id": 14
+        "y": 59
+      }
     },
     {
+      "id": 34,
       "type": "timeseries",
       "title": "Model selection source",
-      "description": "header / body / user_default / global_default / mock",
+      "description": "",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "reqps",
+          "unit": "short",
           "custom": {
-            "fillOpacity": 15,
+            "drawStyle": "bars",
+            "fillOpacity": 60,
             "stacking": {
               "mode": "normal"
-            }
+            },
+            "lineWidth": 1
           }
         },
         "overrides": []
@@ -650,7 +1164,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (source) (rate(model_selection_total[5m]))",
+          "expr": "sum by (source) (increase(model_selection_total{job=\"observable-ai-service\"}[$__rate_interval]))",
           "legendFormat": "{{source}}",
           "refId": "A"
         }
@@ -659,11 +1173,11 @@
         "w": 12,
         "h": 8,
         "x": 0,
-        "y": 38
-      },
-      "id": 15
+        "y": 67
+      }
     },
     {
+      "id": 35,
       "type": "timeseries",
       "title": "/ask outcomes by intent",
       "description": "",
@@ -673,12 +1187,14 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "reqps",
+          "unit": "short",
           "custom": {
-            "fillOpacity": 15,
+            "drawStyle": "bars",
+            "fillOpacity": 60,
             "stacking": {
               "mode": "normal"
-            }
+            },
+            "lineWidth": 1
           }
         },
         "overrides": []
@@ -698,7 +1214,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (intent, outcome) (rate(ask_requests_total[1m]))",
+          "expr": "sum by (intent, outcome) (increase(ask_requests_total{job=\"observable-ai-service\"}[$__rate_interval]))",
           "legendFormat": "{{intent}} {{outcome}}",
           "refId": "A"
         }
@@ -707,11 +1223,176 @@
         "w": 12,
         "h": 8,
         "x": 12,
-        "y": 38
-      },
-      "id": 16
+        "y": 67
+      }
     },
     {
+      "id": 103,
+      "type": "row",
+      "title": "Async jobs & Kafka",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "w": 24,
+        "h": 1,
+        "x": 0,
+        "y": 75
+      }
+    },
+    {
+      "id": 40,
+      "type": "timeseries",
+      "title": "Async job transitions by status",
+      "description": "queued \u2192 running \u2192 retrying / fallback \u2192 completed | failed.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "stacking": {
+              "mode": "normal"
+            },
+            "lineWidth": 1
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (status) (increase(ask_jobs_total{job=\"observable-ai-service\"}[$__rate_interval]))",
+          "legendFormat": "{{status}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "w": 12,
+        "h": 8,
+        "x": 0,
+        "y": 76
+      }
+    },
+    {
+      "id": 42,
+      "type": "timeseries",
+      "title": "Kafka publishes by topic and outcome",
+      "description": "Empty while KAFKA_ENABLED=false (feature flag).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "stacking": {
+              "mode": "normal"
+            },
+            "lineWidth": 1
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (topic, outcome) (increase(kafka_publish_total{job=\"observable-ai-service\"}[$__rate_interval]))",
+          "legendFormat": "{{topic}} {{outcome}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "w": 12,
+        "h": 8,
+        "x": 12,
+        "y": 76
+      }
+    },
+    {
+      "id": 41,
+      "type": "stat",
+      "title": "Jobs in flight",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(ask_jobs_in_flight{job=\"observable-ai-service\"})",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "w": 4,
+        "h": 4,
+        "x": 0,
+        "y": 84
+      }
+    },
+    {
+      "id": 104,
       "type": "row",
       "title": "Business actions",
       "collapsed": false,
@@ -720,11 +1401,11 @@
         "w": 24,
         "h": 1,
         "x": 0,
-        "y": 46
-      },
-      "id": 17
+        "y": 88
+      }
     },
     {
+      "id": 43,
       "type": "timeseries",
       "title": "Tool calls by outcome",
       "description": "",
@@ -734,12 +1415,14 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "reqps",
+          "unit": "short",
           "custom": {
-            "fillOpacity": 15,
+            "drawStyle": "bars",
+            "fillOpacity": 60,
             "stacking": {
               "mode": "normal"
-            }
+            },
+            "lineWidth": 1
           }
         },
         "overrides": []
@@ -759,7 +1442,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (tool, outcome) (rate(agent_tool_calls_total[1m]))",
+          "expr": "sum by (tool, outcome) (increase(agent_tool_calls_total{job=\"observable-ai-service\"}[$__rate_interval]))",
           "legendFormat": "{{tool}} {{outcome}}",
           "refId": "A"
         }
@@ -768,11 +1451,11 @@
         "w": 12,
         "h": 8,
         "x": 0,
-        "y": 47
-      },
-      "id": 18
+        "y": 89
+      }
     },
     {
+      "id": 44,
       "type": "timeseries",
       "title": "Tickets created by priority",
       "description": "",
@@ -784,10 +1467,12 @@
         "defaults": {
           "unit": "short",
           "custom": {
-            "fillOpacity": 15,
+            "drawStyle": "bars",
+            "fillOpacity": 60,
             "stacking": {
               "mode": "normal"
-            }
+            },
+            "lineWidth": 1
           }
         },
         "overrides": []
@@ -807,7 +1492,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (priority) (increase(tickets_created_total[5m]))",
+          "expr": "sum by (priority) (increase(tickets_created_total{job=\"observable-ai-service\"}[$__rate_interval]))",
           "legendFormat": "{{priority}}",
           "refId": "A"
         }
@@ -816,15 +1501,428 @@
         "w": 12,
         "h": 8,
         "x": 12,
-        "y": 47
+        "y": 89
+      }
+    },
+    {
+      "id": 105,
+      "type": "row",
+      "title": "Runtime",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "w": 24,
+        "h": 1,
+        "x": 0,
+        "y": 97
+      }
+    },
+    {
+      "id": 50,
+      "type": "stat",
+      "title": "Service up",
+      "description": "0 = Prometheus cannot scrape /metrics. Alerts: ServiceDown.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       },
-      "id": 19
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "up{job=\"observable-ai-service\"}",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "w": 4,
+        "h": 4,
+        "x": 0,
+        "y": 98
+      }
+    },
+    {
+      "id": 56,
+      "type": "stat",
+      "title": "Uptime",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "time() - process_start_time_seconds{job=\"observable-ai-service\"}",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "w": 4,
+        "h": 4,
+        "x": 4,
+        "y": 98
+      }
+    },
+    {
+      "id": 55,
+      "type": "stat",
+      "title": "Python",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "python_info{job=\"observable-ai-service\"}",
+          "legendFormat": "{{version}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "w": 4,
+        "h": 4,
+        "x": 8,
+        "y": 98
+      }
+    },
+    {
+      "id": 57,
+      "type": "stat",
+      "title": "Open fds / max",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "process_open_fds{job=\"observable-ai-service\"} / process_max_fds{job=\"observable-ai-service\"}",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "w": 4,
+        "h": 4,
+        "x": 12,
+        "y": 98
+      }
+    },
+    {
+      "id": 51,
+      "type": "timeseries",
+      "title": "CPU",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "stacking": {
+              "mode": "none"
+            },
+            "lineWidth": 1
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "rate(process_cpu_seconds_total{job=\"observable-ai-service\"}[$__rate_interval])",
+          "legendFormat": "cpu",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "w": 8,
+        "h": 8,
+        "x": 0,
+        "y": 102
+      }
+    },
+    {
+      "id": 52,
+      "type": "timeseries",
+      "title": "Memory",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "stacking": {
+              "mode": "none"
+            },
+            "lineWidth": 1
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "process_resident_memory_bytes{job=\"observable-ai-service\"}",
+          "legendFormat": "resident",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "process_virtual_memory_bytes{job=\"observable-ai-service\"}",
+          "legendFormat": "virtual",
+          "refId": "B"
+        }
+      ],
+      "gridPos": {
+        "w": 8,
+        "h": 8,
+        "x": 8,
+        "y": 102
+      }
+    },
+    {
+      "id": 54,
+      "type": "timeseries",
+      "title": "Python GC",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "stacking": {
+              "mode": "none"
+            },
+            "lineWidth": 1
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (generation) (rate(python_gc_collections_total{job=\"observable-ai-service\"}[$__rate_interval]))",
+          "legendFormat": "collections gen {{generation}}",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(python_gc_objects_collected_total{job=\"observable-ai-service\"}[$__rate_interval]))",
+          "legendFormat": "collected",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(python_gc_objects_uncollectable_total{job=\"observable-ai-service\"}[$__rate_interval]))",
+          "legendFormat": "uncollectable",
+          "refId": "C"
+        }
+      ],
+      "gridPos": {
+        "w": 8,
+        "h": 8,
+        "x": 16,
+        "y": 102
+      }
     }
   ],
   "links": [
     {
       "title": "Jaeger",
       "url": "http://localhost:16686/search?service=observable-ai-service",
+      "type": "link",
+      "targetBlank": true
+    },
+    {
+      "title": "Alertmanager",
+      "url": "http://localhost:9093",
+      "type": "link",
+      "targetBlank": true
+    },
+    {
+      "title": "Prometheus alerts",
+      "url": "http://localhost:9090/alerts",
       "type": "link",
       "targetBlank": true
     }
