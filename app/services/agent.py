@@ -93,13 +93,16 @@ class AgentService:
         selection: Selection,
         *,
         fault: str | None = None,
+        fault_count: int = 1,
     ) -> AgentResult:
         messages = [
             ChatMessage("system", SYSTEM_PROMPT),
             ChatMessage("user", f"Question: {question}"),
         ]
         with tracer.start_as_current_span("agent.plan") as span:
-            completion = await self._orchestrator.complete(selection, messages, fault=fault)
+            completion = await self._orchestrator.complete(
+                selection, messages, fault=fault, fault_count=fault_count
+            )
             plan = parse_plan(completion.result.text)
             plan_valid = plan is not None
             span.set_attribute("agent.plan_valid", plan_valid)

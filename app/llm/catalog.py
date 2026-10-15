@@ -41,6 +41,11 @@ CATALOG: tuple[ModelSpec, ...] = (
         "gemini-2.5-flash", "Gemini 2.5 Flash", Provider.GOOGLE, Tier.STANDARD, "gemini-2.5-flash"
     ),
     ModelSpec("gemini-2.5-pro", "Gemini 2.5 Pro", Provider.GOOGLE, Tier.PREMIUM, "gemini-2.5-pro"),
-    # Always available: no key, no network. The last link of every fallback chain.
+    # Rule-based mocks, one per tier, with simulated latency: no key, no network.
+    # They make multi-hop fallback demos possible without a provider account.
+    ModelSpec("mock-economy", "Mock economy", Provider.MOCK, Tier.ECONOMY, "mock-economy"),
+    ModelSpec("mock-standard", "Mock standard", Provider.MOCK, Tier.STANDARD, "mock-standard"),
+    ModelSpec("mock-premium", "Mock premium", Provider.MOCK, Tier.PREMIUM, "mock-premium"),
+    # Always available and instant. The last link of every fallback chain.
     ModelSpec(MOCK_MODEL_ID, "Mock (rule-based)", Provider.MOCK, Tier.ECONOMY, "mock-echo"),
 )

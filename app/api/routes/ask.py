@@ -60,6 +60,23 @@ FaultHeader = Annotated[
         },
     ),
 ]
+FaultCountHeader = Annotated[
+    int,
+    Header(
+        alias="X-Debug-Fault-Count",
+        ge=1,
+        le=5,
+        description=(
+            "With `X-Debug-Fault`: how many models of the fallback chain fail, from the "
+            "selected one. 2 with `X-Model-Id: mock-premium` → premium and standard time out, "
+            "economy answers. The last-resort `mock-echo` is never faulted."
+        ),
+        openapi_examples={
+            "one": {"summary": "Only the selected model fails", "value": 1},
+            "two": {"summary": "Two hops fail, the third answers", "value": 2},
+        },
+    ),
+]
 AskBody = Annotated[
     AskRequest,
     Body(
@@ -113,6 +130,7 @@ async def ask(
     langfuse: Langfuse,
     x_model_id: ModelIdHeader = None,
     x_debug_fault: FaultHeader = None,
+    x_debug_fault_count: FaultCountHeader = 1,
 ) -> AskResponse:
     """Answer a question with an LLM-planned agent that can open tickets and build
     order reports. Every response carries the `request_id`, `session_id` and
@@ -138,15 +156,13 @@ async def ask(
                         "llm.selection.source": selection.source,
                         "llm.model_id": selection.model.id,
                         "llm.tier": selection.model.spec.tier.value,
-                        "llm.fallback_model_id": (
-                            selection.fallback.id if selection.fallback else ""
-                        ),
+                        "llm.fallback_chain": ",".join(m.id for m in selection.fallbacks),
                     }
                 )
             MODEL_SELECTION.labels(source=selection.source).inc()
 
             result = await AgentService(orchestrator, session).answer(
-                body.question, user, selection, fault=fault
+                body.question, user, selection, fault=fault, fault_count=x_debug_fault_count
             )
         except AppError as exc:
             ASK_REQUESTS.labels(intent="unknown", outcome=exc.code.value.lower()).inc()

@@ -77,10 +77,9 @@ class LLMOrchestrator:
         messages: Sequence[ChatMessage],
         *,
         fault: str | None = None,
+        fault_count: int = 1,
     ) -> Completion:
-        chain = [selection.model]
-        if selection.fallback is not None:
-            chain.append(selection.fallback)
+        chain = [selection.model, *selection.fallbacks]
         # The rule-based mock is the last resort. It is appended even when the
         # selected model *is* the mock, so an injected fault on it still degrades.
         if chain[-1].id != MOCK_MODEL_ID or len(chain) == 1:
@@ -90,8 +89,9 @@ class LLMOrchestrator:
         tried: list[str] = []
         for index, model in enumerate(chain):
             tried.append(model.id)
-            # Faults hit only the selected model, so the fallback path is what the demo shows.
-            model_fault = fault if index == 0 else None
+            # Faults hit the first `fault_count` models, never the last resort, so the
+            # demo always ends on an answer and shows each hop of the chain.
+            model_fault = fault if index < min(fault_count, len(chain) - 1) else None
             try:
                 result, used = await self._with_retries(model, messages, model_fault)
                 attempts += used

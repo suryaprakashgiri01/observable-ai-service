@@ -43,6 +43,9 @@ class Settings(BaseSettings):
 
     llm_default_model_id: str = "gpt-4.1-mini"
     llm_fallback_model_id: str = "mock-echo"
+    # Tried in order after the selected model and the user's fallback; mock-echo is
+    # always appended last. Comma separated.
+    llm_fallback_chain: str = "mock-standard,mock-economy"
     llm_timeout_seconds: float = Field(default=20.0, gt=0)
     llm_max_attempts: int = Field(default=3, ge=1, le=6)
     llm_backoff_base_seconds: float = Field(default=0.5, ge=0)
@@ -63,6 +66,10 @@ class Settings(BaseSettings):
     langfuse_public_key: str = ""
     langfuse_secret_key: SecretStr = SecretStr("")
     langfuse_host: str = "https://cloud.langfuse.com"
+
+    @property
+    def fallback_chain(self) -> list[str]:
+        return [m.strip() for m in self.llm_fallback_chain.split(",") if m.strip()]
 
     @property
     def langfuse_enabled(self) -> bool:

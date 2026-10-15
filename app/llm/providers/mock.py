@@ -7,6 +7,7 @@ fallback chain: ``/ask`` degrades to a rule-based answer instead of a 5xx.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from collections.abc import Sequence
@@ -90,6 +91,14 @@ def plan_for(question: str) -> dict[str, object]:
     }
 
 
+# Simulated latency per mock tier, so a fallback hop costs visible time in traces.
+MOCK_LATENCY_SECONDS: dict[str, float] = {
+    "mock-economy": 0.08,
+    "mock-standard": 0.15,
+    "mock-premium": 0.3,
+}
+
+
 class MockProvider:
     async def complete(
         self,
@@ -100,6 +109,9 @@ class MockProvider:
         temperature: float,
         timeout_seconds: float,
     ) -> LLMResult:
+        delay = MOCK_LATENCY_SECONDS.get(model.spec.provider_model, 0.0)
+        if delay:
+            await asyncio.sleep(delay)
         question = _question(messages)
         text = json.dumps(plan_for(question))
         # Rough whitespace token counts keep the token metrics meaningful in demos.

@@ -39,6 +39,8 @@ def make_settings(**overrides: Any) -> Settings:
         "llm_max_attempts": 3,
         "llm_default_model_id": "mock-echo",
         "llm_fallback_model_id": "mock-echo",
+        # Empty by default so single-hop tests stay exact; chain tests set it.
+        "llm_fallback_chain": "",
         "app_encryption_key": Fernet.generate_key().decode(),
         "openai_api_key": "",
         "anthropic_api_key": "",
