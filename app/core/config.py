@@ -5,7 +5,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, SecretStr
+from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 SERVICE_NAME = "observable-ai-service"
@@ -84,7 +84,12 @@ class Settings(BaseSettings):
     # --- Langfuse ----------------------------------------------------------
     langfuse_public_key: str = ""
     langfuse_secret_key: SecretStr = SecretStr("")
-    langfuse_host: str = "https://cloud.langfuse.com"
+    # LANGFUSE_BASE_URL is the SDK's own name; LANGFUSE_HOST is the older one. The region
+    # matters: a US project (us.cloud.langfuse.com) rejects keys sent to the EU host.
+    langfuse_host: str = Field(
+        default="https://cloud.langfuse.com",
+        validation_alias=AliasChoices("LANGFUSE_BASE_URL", "LANGFUSE_HOST", "langfuse_host"),
+    )
 
     @property
     def fallback_chain(self) -> list[str]:

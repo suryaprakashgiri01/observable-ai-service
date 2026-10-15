@@ -160,3 +160,13 @@ def test_bounded_series_exist_at_zero_before_any_event(client: TestClient) -> No
     ):
         assert line in text, line
     assert "# TYPE python_gc_collections_total counter" in text
+
+
+def test_langfuse_base_url_is_read_under_both_names(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.core.config import Settings
+
+    monkeypatch.setenv("LANGFUSE_BASE_URL", "https://us.cloud.langfuse.com")
+    assert Settings(_env_file=None).langfuse_host == "https://us.cloud.langfuse.com"  # type: ignore[call-arg]
+    monkeypatch.delenv("LANGFUSE_BASE_URL")
+    monkeypatch.setenv("LANGFUSE_HOST", "https://eu.example")
+    assert Settings(_env_file=None).langfuse_host == "https://eu.example"  # type: ignore[call-arg]
