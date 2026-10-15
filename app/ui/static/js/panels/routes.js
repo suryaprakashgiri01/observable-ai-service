@@ -33,7 +33,7 @@ export function mount(root) {
     h("div", { class: "card row" },
       h("label", { class: "field" }, h("span", { text: "Admin key for the admin-only case" }), adminKey),
       h("span", { class: "muted", text: "Your own key is the one set with Authorize. 401 and 403 alert; 404 and 422 do not." })),
-    Object.entries(groups).map(([group, cases]) => [h("h3", { text: group }), h("div", { class: "grid" }, cases.map((c) => caseCard(c, adminKey)))]));
+    Object.entries(groups).map(([group, cases]) => [h("h3", { text: group }), h("div", { class: "grid-wide" }, cases.map((c) => caseCard(c, adminKey)))]));
 }
 
 function caseCard(c, adminKey) {
@@ -64,9 +64,11 @@ function caseCard(c, adminKey) {
     try { await navigator.clipboard.writeText(text); toast("curl copied"); } catch { toast("Clipboard blocked"); }
   });
 
+  // Actions get their own row so a long path can never push them out of the card.
   return h("div", { class: "card" },
-    h("div", { class: "card-title" }, badge(c.method, "info"), h("span", { class: "mono", text: c.path }), h("span", { class: "spacer" }), copy, send),
+    h("div", { class: "card-title" }, badge(c.method, "info"), h("span", { class: "mono route-path", text: c.path })),
     h("strong", { text: c.title }),
     h("p", { class: "muted", text: `Expect: ${c.expect}` }),
+    h("div", { class: "card-actions" }, copy, send),
     out);
 }

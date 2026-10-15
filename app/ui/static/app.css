@@ -141,18 +141,25 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px s
   border-bottom: 2px solid transparent; white-space: nowrap;
 }
 .tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
-main { max-width: 1180px; margin: 0 auto; padding: 20px; }
+main { max-width: 1600px; margin: 0 auto; padding: 20px 28px; }
 .panel { display: flex; flex-direction: column; gap: 16px; }
 .panel-head { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
 .panel-head p { margin: 2px 0 0; color: var(--muted); }
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }
-.card-title { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); min-width: 0; }
+/* Wraps instead of overflowing the card when the row is too long (long paths, many badges). */
+.card-title { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; min-width: 0; }
+.card-title .mono { overflow-wrap: anywhere; min-width: 0; }
+.card-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.route-path { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.grid-wide { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
 .empty {
   border: 1px dashed var(--border); border-radius: var(--radius); padding: 28px; text-align: center;
   color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 12px;
 }
 .split { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
-@media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
+/* The Ask builder has more controls than the result: give it the larger share. */
+.split.ask-split { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 20px; }
+@media (max-width: 900px) { .split, .split.ask-split { grid-template-columns: 1fr; } }
 
 /* --- badges and pills ------------------------------------------------------------- */
 .badge { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
@@ -223,5 +230,6 @@ td.mono { white-space: nowrap; }
   .topbar-right { margin-left: 0; width: 100%; }
   .session-field input { width: 120px; }
   main { padding: 16px; }
+  .grid-wide { grid-template-columns: 1fr; }
   .tabs { padding: 0 8px; }
 }

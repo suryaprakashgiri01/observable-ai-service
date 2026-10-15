@@ -220,7 +220,7 @@ export function mount(root) {
   clear(root,
     h("div", { class: "panel-head" },
       h("div", {}, h("h2", { text: "Ask" }), h("p", { text: "Build any /ask request: sync or async, model by header or body, ids, trace context, faults, and with or without a key." }))),
-    h("div", { class: "split" },
+    h("div", { class: "split ask-split" },
       h("div", { class: "panel" },
         h("div", { class: "card" }, h("h3", { text: "Mode" }), h("div", { class: "segmented" }, modeBtns),
           h("p", { class: "muted", text: "Async sends Prefer: respond-async: you get 202 and a job id, then the console polls GET /ask/jobs/{id}." })),
