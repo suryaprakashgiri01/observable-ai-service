@@ -212,8 +212,9 @@ async def metric_totals(cfg: Config) -> dict[str, float]:
         if not line or line.startswith("#"):
             continue
         match = re.match(r"([a-zA-Z_:][a-zA-Z0-9_:]*)(?:\{[^}]*\})?\s+([-+0-9.eE]+|NaN)", line)
-        if match and match.group(2) != "NaN":
-            name = re.sub(r"_(bucket|count|sum|created)$", "", match.group(1))
+        # *_created is a per-series timestamp, not a value: skip it.
+        if match and match.group(2) != "NaN" and not match.group(1).endswith("_created"):
+            name = re.sub(r"_(bucket|count|sum)$", "", match.group(1))
             totals[name] = totals.get(name, 0.0) + float(match.group(2))
     return totals
 
@@ -249,7 +250,13 @@ async def run(args: argparse.Namespace) -> None:
 
     print()
     moved = sorted(n for n in after if after.get(n, 0) != before.get(n, 0))
-    still = sorted(n for n in after if n not in moved and not n.startswith(("process_", "python_")))
+    # Gauges that return to 0 when the run ends (in-flight counts) cannot be judged by a diff.
+    gauges = ("http_requests_in_progress", "ask_jobs_in_flight", "notifications_unread")
+    still = sorted(
+        n
+        for n in after
+        if n not in moved and not n.startswith(("process_", "python_")) and n not in gauges
+    )
     log.info("metric families that moved", count=len(moved), families=moved)
     if still:
         log.warning(
