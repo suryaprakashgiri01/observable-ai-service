@@ -25,6 +25,7 @@ dependencies = [
     "opentelemetry-instrumentation-httpx>=0.55b0",
     "opentelemetry-instrumentation-sqlalchemy>=0.55b0",
     "langfuse>=3.0,<4",
+    "aiokafka>=0.12,<1",          # optional event fan-out, only used when KAFKA_ENABLED
 ]
 
 [dependency-groups]
@@ -67,7 +68,7 @@ module = ["tests.*"]
 disallow_untyped_defs = false
 
 [[tool.mypy.overrides]]
-module = ["langfuse.*"]
+module = ["langfuse.*", "aiokafka.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

@@ -7,6 +7,7 @@ from typing import Annotated
 from fastapi import Depends, Request
 
 from app.api.deps import AppSettings, Session
+from app.integrations.events import EventPublisher
 from app.llm.langfuse_recorder import LangfuseRecorder
 from app.llm.orchestrator import LLMOrchestrator
 from app.llm.registry import ModelRegistry
@@ -26,6 +27,12 @@ def _langfuse(request: Request) -> LangfuseRecorder | None:
     return recorder
 
 
+def _events(request: Request) -> EventPublisher:
+    events: EventPublisher = request.app.state.events
+    return events
+
+
 Registry = Annotated[ModelRegistry, Depends(_registry)]
 Orchestrator = Annotated[LLMOrchestrator, Depends(_orchestrator)]
 Langfuse = Annotated[LangfuseRecorder | None, Depends(_langfuse)]
+Events = Annotated[EventPublisher, Depends(_events)]

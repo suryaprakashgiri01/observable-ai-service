@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import structlog
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from app.api.deps import AppSettings, Db
@@ -40,7 +40,7 @@ async def liveness(settings: AppSettings) -> dict[str, str]:
         }
     },
 )
-async def readiness(db: Db, settings: AppSettings) -> JSONResponse:
+async def readiness(request: Request, db: Db, settings: AppSettings) -> JSONResponse:
     """Ready to take traffic: database reachable. Reports which LLM providers have
     credentials; none is fatal because `mock-echo` always answers."""
     checks: dict[str, str] = {}
@@ -57,6 +57,10 @@ async def readiness(db: Db, settings: AppSettings) -> JSONResponse:
         "google": bool(settings.gemini_api_key.get_secret_value()),
         "mock": True,
     }
+    events = getattr(request.app.state, "events", None)
+    if events is not None and events.enabled:
+        # Reported, not gating: Kafka is optional fan-out, the API works without it.
+        checks["kafka"] = events.status()
     ready = checks["database"] == "ok"
     return JSONResponse(
         status_code=200 if ready else 503,

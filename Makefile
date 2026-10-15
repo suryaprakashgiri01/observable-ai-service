@@ -45,7 +45,7 @@ define require_compose
 	}
 endef
 
-.PHONY: help runtime psql install dev up up-infra down logs lint format typecheck test test-cov test-ci check \
+.PHONY: help runtime psql install dev up up-infra up-kafka down logs lint format typecheck test test-cov test-ci check \
         migrate migration downgrade seed docker-build clean demo-success demo-invalid demo-fault
 
 help:
@@ -84,9 +84,15 @@ _wait-postgres:
 	$(COMPOSE) logs --tail=20 postgres >&2 || true; \
 	exit 1
 
-down: ## Stop the stack
+down: ## Stop the stack (including the optional Kafka profile)
 	$(require_compose)
-	$(COMPOSE) down
+	$(COMPOSE) --profile kafka down
+
+up-kafka: ## Start the optional Kafka broker + Kafka UI (:8080); set KAFKA_ENABLED=true in .env
+	$(require_compose)
+	$(COMPOSE) --profile kafka up -d kafka kafka-ui
+	@echo "Kafka on localhost:9094 (kafka:9092 in compose), UI on http://localhost:8080"
+	@echo "Set KAFKA_ENABLED=true in .env, then: $(COMPOSE) up -d --force-recreate app"
 
 logs: ## Tail stack logs (one service: make logs s=app)
 	$(require_compose)

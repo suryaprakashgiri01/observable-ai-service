@@ -22,6 +22,7 @@ from app.core.telemetry import (
 from app.db.session import Database
 from app.exceptions.codes import ErrorCode
 from app.exceptions.handlers import register_error_hook, register_exception_handlers
+from app.integrations.events import EventPublisher, build_publisher
 from app.llm.factory import build_http_client, build_providers
 from app.llm.langfuse_recorder import LangfuseRecorder
 from app.llm.orchestrator import LLMOrchestrator
@@ -50,7 +51,11 @@ async def _sync_catalog(db: Database) -> None:
         logger.warning("model catalog sync skipped", error=type(exc).__name__)
 
 
-def create_app(settings: Settings | None = None, database: Database | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    database: Database | None = None,
+    publisher: EventPublisher | None = None,
+) -> FastAPI:
     settings = settings or get_settings()
     setup_logging(level=settings.log_level, log_format=settings.log_format)
     configure_tracing(settings)
@@ -63,6 +68,10 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
         if settings.auto_sync_catalog:
             await _sync_catalog(db)
 
+        events = publisher or build_publisher(settings)
+        await events.start()
+        app.state.events = events
+
         http_client = build_http_client(settings)
         recorder = LangfuseRecorder.from_settings(settings)
         app.state.langfuse = recorder
@@ -74,6 +83,7 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
             yield
         finally:
             await http_client.aclose()
+            await events.stop()
             if recorder is not None:
                 recorder.shutdown()
             await db.dispose()
@@ -125,7 +135,11 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
             for method in operations
         ],
         error_codes=[code.value for code in ErrorCode],
-        kafka_topics=(),
+        kafka_topics=(
+            (settings.kafka_topic_notifications, settings.kafka_topic_ask_status)
+            if settings.kafka_enabled
+            else ()
+        ),
     )
 
     # Outermost: the server span exists before our middleware logs anything.

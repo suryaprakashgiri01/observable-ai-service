@@ -12,6 +12,7 @@ from opentelemetry import trace
 
 from app.api.deps import AppSettings, Session
 from app.api.openapi import AUTH_ERRORS, error_responses
+from app.api.services import Events
 from app.auth.dependencies import CurrentUser
 from app.core.metrics import ALERTS_RECEIVED, NOTIFICATIONS_UNREAD
 from app.exceptions import AppError, ErrorCode
@@ -67,6 +68,7 @@ async def alert_webhook(
     ],
     session: Session,
     settings: AppSettings,
+    events: Events,
     authorization: Annotated[
         str | None,
         Header(
@@ -85,8 +87,10 @@ async def alert_webhook(
 
     repo = NotificationRepository(session)
     span = trace.get_current_span()
+    stored = []
     for alert in payload.alerts:
         row = await repo.upsert(alert)
+        stored.append(row)
         ALERTS_RECEIVED.labels(alertname=row.alertname, status=row.status).inc()
         log = logger.warning if row.status == "firing" else logger.info
         log(
@@ -99,6 +103,12 @@ async def alert_webhook(
         span.add_event("alert", {"alertname": row.alertname, "status": row.status})
     await session.commit()
     NOTIFICATIONS_UNREAD.set(await repo.count_unread())
+    for row in stored:
+        await events.publish(
+            "notifications",
+            row.fingerprint,
+            NotificationOut.model_validate(row).model_dump(mode="json"),
+        )
     return WebhookAck(received=len(payload.alerts))
 
 

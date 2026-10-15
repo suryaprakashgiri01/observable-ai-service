@@ -64,6 +64,16 @@ class Settings(BaseSettings):
     prometheus_url: str = "http://localhost:9090"
     alertmanager_url: str = "http://localhost:9093"
 
+    # --- Kafka (optional fan-out; feature flag) -------------------------------
+    # Off by default: no client is created and nothing connects. Postgres stays the
+    # source of truth for notifications and job status either way.
+    kafka_enabled: bool = False
+    kafka_bootstrap_servers: str = "localhost:9094"
+    kafka_topic_notifications: str = "ai-service.notifications"
+    kafka_topic_ask_status: str = "ai-service.ask-status"
+    kafka_publish_timeout_seconds: float = Field(default=5.0, gt=0)
+    kafka_ui_url: str = "http://localhost:8080"
+
     # --- tracing -----------------------------------------------------------
     otel_enabled: bool = True
     otel_service_name: str = SERVICE_NAME
