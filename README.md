@@ -131,6 +131,10 @@ step and no CDN, so it works offline and ships in the same image.
 - **Routes & auth**: one button per case: 401 `AUTH_REQUIRED` / `AUTH_INVALID`, **403
   `FORBIDDEN`** (`/admin/users` with a user key), webhook 401, 404 and 422.
 - **Request log**: every call the console made, with status, latency, request id and trace link.
+- **Theme**: System / Light / Dark toggle, saved per device.
+
+Full guide (flow, routes, every tab, its options and the API calls behind them):
+[docs/web-console.md](docs/web-console.md).
 
 ### Async jobs and Kafka
 
@@ -169,5 +173,5 @@ make help
 
 Spec-driven: [spec](specs/observable-ask-service/spec.md) ·
 [plan](specs/observable-ask-service/plan.md) · [tasks](specs/observable-ask-service/tasks.md).
-Write-ups: [high-level design](docs/hld.md) · [architecture](docs/architecture.md) · [demo script](docs/demo-script.md) ·
+Write-ups: [high-level design](docs/hld.md) · [web console guide](docs/web-console.md) · [architecture](docs/architecture.md) · [demo script](docs/demo-script.md) ·
 [debugging insight](docs/debugging-insight.md) · [tradeoffs](docs/tradeoffs.md).

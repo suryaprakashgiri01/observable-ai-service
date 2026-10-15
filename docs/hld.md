@@ -47,7 +47,7 @@ flowchart LR
 | Component | Responsibility | Tech | Port |
 |---|---|---|---|
 | API | Auth, `/ask`, tickets, models, jobs, notifications, health, metrics | FastAPI, uvicorn, Python 3.12 | 8000 |
-| Web console | `/ui`: Authorize, auth state, request builder, panels, request log | static HTML/CSS/JS served by the app (no build) | 8000 |
+| Web console ([guide](web-console.md)) | `/ui`: Authorize, auth state, theme, request builder, panels, request log | static HTML/CSS/JS served by the app (no build) | 8000 |
 | Middleware | Request/session ids, access log, RED metrics, OTel server span, console security headers | raw ASGI | – |
 | Agent | JSON plan from the LLM, then a tool | `app/services/agent.py` | – |
 | LLM orchestrator | Model resolution, retries, fallback chain, per-attempt spans | `app/llm/*`, httpx, tenacity | – |
