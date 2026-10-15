@@ -20,8 +20,10 @@
   color-scheme: light;
 }
 
+/* Dark tokens apply when the user picks Dark, or picks System (no data-theme) and the OS is dark.
+   Picking Light pins light even on a dark OS. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #0f1218;
     --surface: #171b23;
     --surface-2: #1e232d;
@@ -40,6 +42,25 @@
     --shadow: none;
     color-scheme: dark;
   }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1218;
+  --surface: #171b23;
+  --surface-2: #1e232d;
+  --border: #2b3240;
+  --text: #e5e9f0;
+  --muted: #97a1b2;
+  --accent: #6f98ef;
+  --accent-text: #0b0e14;
+  --ok: #4cc283;
+  --ok-bg: #12301f;
+  --warn: #e2a93b;
+  --warn-bg: #33260d;
+  --err: #ef7465;
+  --err-bg: #3a1714;
+  --info-bg: #17233a;
+  --shadow: none;
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -72,6 +93,7 @@ a { color: var(--accent); }
 .topbar-right { display: flex; align-items: center; gap: 10px; margin-left: auto; flex-wrap: wrap; }
 .session-field { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
 .session-field input { width: 150px; }
+.theme-toggle { min-width: 92px; }
 
 /* --- controls ---------------------------------------------------------------------- */
 input, select, textarea {

@@ -11,7 +11,14 @@ def test_console_is_served_without_a_key_with_security_headers(client: TestClien
     assert "AI Service Console" in page.text
     assert page.headers["content-security-policy"] == CONSOLE_CSP
     assert page.headers["x-content-type-options"] == "nosniff"
-    for asset in ("/ui/app.css", "/ui/js/main.js", "/ui/js/panels/ask.js"):
+    assert 'id="theme-toggle"' in page.text and "js/theme-boot.js" in page.text
+    for asset in (
+        "/ui/app.css",
+        "/ui/js/main.js",
+        "/ui/js/panels/ask.js",
+        "/ui/js/theme.js",
+        "/ui/js/theme-boot.js",
+    ):
         assert client.get(asset).status_code == 200, asset
 
 

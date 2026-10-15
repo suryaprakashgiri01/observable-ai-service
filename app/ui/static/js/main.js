@@ -1,6 +1,7 @@
 import { onCall, request, setSession, state } from "./api.js";
 import { noteResponse, setupAuth } from "./auth.js";
 import { addToLog, setupLog } from "./log.js";
+import { setupTheme } from "./theme.js";
 import * as ask from "./panels/ask.js";
 import * as models from "./panels/models.js";
 import * as notifications from "./panels/notifications.js";
@@ -26,6 +27,7 @@ function show(name) {
 }
 
 async function boot() {
+  setupTheme();
   setupLog();
   setupAuth();
   onCall(addToLog);
