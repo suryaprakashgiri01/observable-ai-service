@@ -46,7 +46,7 @@ define require_compose
 endef
 
 .PHONY: help runtime psql install dev up up-infra up-kafka down logs lint format typecheck test test-cov test-ci check \
-        migrate migration downgrade seed docker-build clean demo-success demo-invalid demo-fault
+        migrate migration downgrade seed traffic demo cleanup dashboard docker-build clean demo-success demo-invalid demo-fault
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -137,6 +137,18 @@ downgrade: ## Roll back one migration
 seed: ## Seed the model catalog and the initial users (idempotent)
 	$(RUN) python -m scripts.seed_models
 	$(RUN) python -m scripts.seed_users
+
+traffic: ## Generate traffic that moves every dashboard metric (ARGS="--rounds 5 --outage")
+	$(RUN) python -m scripts.generate_traffic $(ARGS)
+
+demo: ## Coloured API walkthrough for the demo (ARGS="--pause --session take-1")
+	$(RUN) python -m scripts.demo_walkthrough $(ARGS)
+
+cleanup: ## Reset DB rows, metrics, traces, alerts, Kafka, Langfuse local traces (ARGS="--yes")
+	$(RUN) python -m scripts.cleanup $(ARGS)
+
+dashboard: ## Regenerate the Grafana dashboard JSON from deploy/grafana/build_dashboard.py
+	$(RUN) python deploy/grafana/build_dashboard.py
 
 docker-build: ## Build the container image
 	@test -n "$(CONTAINER)" || { echo "No container runtime found (docker/podman)."; exit 1; }
