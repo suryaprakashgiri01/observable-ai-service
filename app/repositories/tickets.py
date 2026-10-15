@@ -34,7 +34,7 @@ class TicketRepository:
         await self._session.refresh(ticket)
         return ticket
 
-    async def get_for_user(self, ticket_id: int, user_id: uuid.UUID) -> Ticket | None:
+    async def get_for_user(self, ticket_id: uuid.UUID, user_id: uuid.UUID) -> Ticket | None:
         ticket = await self._session.get(Ticket, ticket_id)
         # Another user's ticket reads as missing, not forbidden: ids are not a secret oracle.
         if ticket is None or ticket.user_id != user_id:

@@ -138,7 +138,7 @@ class AgentService:
                         priority=str(plan.args.get("priority", "medium")),
                         description=str(plan.args.get("description", "")),
                     )
-                    span.set_attribute("ticket.id", ticket.id)
+                    span.set_attribute("ticket.id", str(ticket.id))
                     result: tuple[dict[str, Any], str] = (
                         {"type": "ticket_created", "ticket": ticket.model_dump(mode="json")},
                         _ticket_answer(ticket),
@@ -173,7 +173,7 @@ def _as_int(value: Any, *, default: int) -> int:
 
 
 def _ticket_answer(ticket: TicketOut) -> str:
-    return f"Created ticket #{ticket.id} ({ticket.priority} priority): {ticket.title}"
+    return f"Created ticket {ticket.id} ({ticket.priority} priority): {ticket.title}"
 
 
 def _report_answer(report: ReportOut) -> str:

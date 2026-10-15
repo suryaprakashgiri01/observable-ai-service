@@ -235,3 +235,15 @@ def test_custom_model_id_is_validated(client: TestClient) -> None:
     assert response.status_code == 422
     locs = {tuple(e["loc"]) for e in response.json()["error"]["details"]}
     assert ("body", "id") in locs and ("body", "base_url") in locs
+
+
+def test_ticket_ids_are_uuids(client: TestClient) -> None:
+    import uuid
+
+    body = client.post("/ask", json=TICKET_Q, headers=auth()).json()
+    ticket_id = body["action"]["ticket"]["id"]
+    assert uuid.UUID(ticket_id).version == 4
+    assert ticket_id in body["answer"]
+    missing = client.get(f"/tickets/{uuid.uuid4()}", headers=auth())
+    assert missing.status_code == 404 and missing.json()["error"]["code"] == "TICKET_NOT_FOUND"
+    assert client.get("/tickets/12345", headers=auth()).status_code == 422

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from datetime import datetime
 from typing import Literal
 
@@ -13,7 +14,7 @@ class TicketOut(BaseModel):
         from_attributes=True,
         json_schema_extra={
             "example": {
-                "id": 1,
+                "id": "3f2a9c1e-6b7d-4e0a-9c51-2d8e7f1b4a60",
                 "title": "checkout page is slow",
                 "description": "",
                 "priority": "high",
@@ -25,7 +26,7 @@ class TicketOut(BaseModel):
         },
     )
 
-    id: int
+    id: uuid.UUID
     title: str
     description: str
     priority: Priority

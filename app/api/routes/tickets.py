@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Path
@@ -15,10 +16,12 @@ router = APIRouter(prefix="/tickets", tags=["tickets"])
 
 
 TicketId = Annotated[
-    int,
+    uuid.UUID,
     Path(
         description="`action.ticket.id` from an `/ask` that created a ticket.",
-        openapi_examples={"first": {"summary": "Ticket 1", "value": 1}},
+        openapi_examples={
+            "ticket": {"summary": "A ticket id", "value": "3f2a9c1e-6b7d-4e0a-9c51-2d8e7f1b4a60"}
+        },
     ),
 ]
 
