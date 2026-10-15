@@ -48,6 +48,43 @@ easy to miss unless logs are structured and filtered by level.
 **Fix.** One target, `host.docker.internal:8000`, which works both for `make up` and for
 `make dev`.
 
+## 4. The first 5xx never appeared in Grafana
+
+**Symptom.** After a single `tool_error` (502), Grafana's error panels stayed flat. More 502s
+did show up, but the first one on each route never did.
+
+**How observability found it.** Prometheus had the series
+`http_requests_total{route="/ask",status="502"}` at value 1, but `increase(...[1m])` returned
+nothing for it. The raw `/metrics` output explained why: there was no line for that label set
+before the error.
+
+**Root cause.** prometheus_client creates a labelled series on its first `.inc()`, already at 1.
+With no earlier sample at 0, `rate()` and `increase()` have nothing to compare against, so the
+first event of every new series is invisible. The 5xx stat also used a 1-minute window, so it
+fell back to 0 a minute later.
+
+**Fix.** At startup, create every bounded label set at 0: each route × 400/401/403/404/409/
+422/500/502/503, every error code, auth reason, tool outcome, priority, selection source and job
+status. Use `increase()` over `$__rate_interval` on the dashboard. A test checks that the series
+exist before any traffic. Checked live: on a fresh container, the very first 502 and 401
+appeared in Prometheus at once and fired `Http5xxErrors` / `Http4xxAuthErrors`.
+
+## 5. The scripts talked to the wrong Langfuse region
+
+**Symptom.** The demo walkthrough printed no Langfuse session link, while the app's traces were
+arriving in Langfuse fine.
+
+**How observability found it.** The script's project lookup returned 401 from
+`cloud.langfuse.com`, but the screenshot of the project showed `us.cloud.langfuse.com`. The
+app's own startup log line also said `host=https://cloud.langfuse.com`, which was wrong.
+
+**Root cause.** `.env` uses `LANGFUSE_BASE_URL` (the SDK's name), while the settings only read
+`LANGFUSE_HOST`. The SDK found the right URL by itself, so the app worked; our log line and the
+scripts did not.
+
+**Fix.** Read both names, preferring `LANGFUSE_BASE_URL`, and pass it to the SDK explicitly. The
+startup log now prints the US host, and the walkthrough links to the session.
+
 ## What this shows
 
 None of these raised an exception in the request path. Each was visible only because the
